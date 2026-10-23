@@ -11,8 +11,12 @@ This is a GitHub Pages project at `/browser-bridge/`. A `robots.txt` inside that
 Property: `https://ritvikchunamari.github.io/browser-bridge/`.
 Sitemap: `https://ritvikchunamari.github.io/browser-bridge/sitemap.xml`.
 
-Ownership verification and sitemap submission are pending until the signed-in account completes setup. Search Console measures indexing/search queries; this site does not embed analytics or transmit browser migration data to Google. Keep Google verification tokens at their expected public path only; never commit account credentials.
+Ownership was verified with Google’s public HTML file and the five-page sitemap was submitted on 23 October 2026. The initial sitemap report said “Couldn’t fetch”; a separate Google live URL test then confirmed “URL is available to Google.” The sitemap and all five canonical pages return HTTP 200. Sitemap processing and actual search indexing remain separate outcomes; neither is claimed complete here. Search Console measures indexing/search queries; this site does not embed analytics or transmit browser migration data to Google. Keep Google verification tokens at their expected public path only; never commit account credentials.
 
 ## Community discovery
 
 The website and README invite visitors to star the GitHub repository if the project is useful. Repository description, topics and social preview should accurately describe local browser migration on Mac. No purchased stars, fabricated testimonials or automated outreach are used. Community announcements require a separate explicit request identifying where to post.
+
+## Release verification
+
+Universal beta v0.3.1 contains both arm64 and x86_64 slices in the app and native host, with macOS 14 deployment targets and strict signatures checked per slice. Intel runtime remains unverified and guided-only. 24 Swift and 14 helper tests pass on arm64; 16 website visitor checks and two metadata tests pass. Guides were inspected at desktop/mobile sizes and checked for keyboard access and horizontal overflow. Both Standards and Spec review axes reported zero actionable findings. Public release asset hashes match local archives. GitHub Pages deployment succeeded, and public source bytes match the integration source apart from expected shell executable-mode differences and private task records.
