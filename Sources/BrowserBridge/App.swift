@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 import BridgeCore
 
 @main struct BrowserBridgeApp: App {
+    @NSApplicationDelegateAdaptor(CredentialExitDelegate.self) private var credentialExitDelegate
     private let store = MigrationStore()
     var body: some Scene {
         WindowGroup("Browser Bridge") { ManagerView(store: store).frame(minWidth: 900, minHeight: 680) }
@@ -17,6 +18,7 @@ enum Page: String, CaseIterable, Identifiable {
     var symbol: String { switch self { case .transfer: "arrow.left.arrow.right"; case .connections: "link"; case .overview: "square.grid.2x2"; case .plan: "arrow.triangle.branch"; case .support: "globe"; case .packages: "archivebox" } }
 }
 @MainActor @Observable final class MigrationStore {
+    var showsCredentials = false
     var transferring = false
     var transferReceipt: TransferReceipt?
     var transferReceipts: [TransferReceipt] = []
@@ -191,6 +193,36 @@ enum Page: String, CaseIterable, Identifiable {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { _ = try PortableCapture.load(url, expectedBrowser: sourceBrowser); captureURL = url; if selected == nil { portableOnly = true }; notice = "Attached \(url.lastPathComponent). Check its browser/profile and freshness before packaging."; scan() }
         catch { self.error = error.localizedDescription }
+    }
+    func captureNativeWindows() {
+        guard !demo, !loading, !creating, !transferring, sourceBrowser == .arc || sourceBrowser == .safari else { return }
+        let browser = sourceBrowser
+        let alert = NSAlert()
+        alert.messageText = "Read exposed \(browser.name) windows?"
+        alert.informativeText = "This optional capture reads the running browser’s exposed windows, which may span profiles. It is not limited to the selected profile folder. Close private Safari windows first; its scripting interface cannot identify them. Review the saved capture and preview before packaging. macOS may ask for Automation permission. No browser data is changed."
+        alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Capture open windows")
+        guard alert.runModal() == .alertSecondButtonReturn else { return }
+        let panel = NSSavePanel()
+        panel.title = "Save read-only \(browser.name) native capture"
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Browser Bridge \(browser.name) Native Capture.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        loading = true
+        Task { @MainActor in
+            defer { loading = false }
+            do {
+                let capture = try await NativeBrowserCapture.portableCapture(browser: browser)
+                let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                try encoder.encode(capture).write(to: url, options: .atomic)
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+                if sourceBrowser == browser {
+                    captureURL = url
+                    if selected == nil { portableOnly = true }
+                    notice = "Native capture attached. Review exposed-window/profile coverage, freshness and the preview before creating a package. Native destination structures are not recreated automatically."
+                    scan()
+                }
+            } catch { self.error = error.localizedDescription }
+        }
     }
     func saveCaptureHelper() {
         guard sourceBrowser.family != .safari else { return }
@@ -376,8 +408,9 @@ struct ManagerView: View {
                         .keyboardShortcut("e", modifiers: [.command])
                 }.padding(20)
             }.navigationTitle(store.page.rawValue)
-                .toolbar { Button { store.discover() } label: { Label("Rescan profiles", systemImage: "arrow.clockwise") }.disabled(store.loading || store.creating) }
+                .toolbar { Button { store.showsCredentials = true } label: { Label("Passwords", systemImage: "key.horizontal") }.disabled(store.demo); Button { store.discover() } label: { Label("Rescan profiles", systemImage: "arrow.clockwise") }.disabled(store.loading || store.creating) }
         }.tint(accent).task { store.discover() }
+        .sheet(isPresented: $store.showsCredentials) { CredentialView() }
         .onChange(of: store.selectedID) { _, _ in store.scan() }
         .onChange(of: store.sourceBrowser) { _, _ in store.changeSource() }
         .onChange(of: store.targetBrowser) { _, _ in store.discoverTargets() }
@@ -436,10 +469,11 @@ struct ManagerView: View {
             }.padding(.vertical, 16)
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
+                    if store.sourceBrowser == .arc || store.sourceBrowser == .safari { Button("Capture native open windows…", action: store.captureNativeWindows).disabled(store.loading) }
                     if store.sourceBrowser.family != .safari { Button("Save capture helper…", action: store.saveCaptureHelper) }
                     Button("Attach capture / bookmarks HTML…", action: store.attachPortable)
                 }.disabled(store.creating || store.transferring || store.demo)
-                Text(store.sourceBrowser.family == .safari ? "Safari: attach a bookmarks HTML export to use the portable-file fallback." : "For live tabs and pins, capture in the source browser, attach its JSON here, then quit browsers before backup.").font(.callout).foregroundStyle(.secondary)
+                Text(store.sourceBrowser.family == .safari ? "Safari: optionally capture exposed ordinary windows, or attach a bookmarks HTML export. Native Tab Groups and pin state are not exposed by this capture." : "For live tabs and pins, capture in the source browser, attach its JSON here, then quit browsers before backup.").font(.callout).foregroundStyle(.secondary)
                 if let capture = store.captureURL {
                     Text("Attached: \(capture.lastPathComponent)").font(.callout).textSelection(.enabled)
                     Toggle("Portable file only — source profile is not read or backed up", isOn: $store.portableOnly).font(.callout).disabled(store.creating)
