@@ -1,0 +1,21 @@
+[package]
+name = "bridge-sensitive"
+version = "0.4.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+zeroize = "1"
+csv = "1"
+uuid = { version = "1", features = ["v4"] }
+fs2 = "0.4"
+tempfile = "3"
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
