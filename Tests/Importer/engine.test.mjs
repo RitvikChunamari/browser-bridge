@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {importPackage, rollbackPackage} from '../../Resources/Importer/engine.mjs';
+import {importPackage as connectedImport} from '../../Resources/Connector/import.mjs';
+import {verifyImport} from '../../Resources/Connector/verify.mjs';
 function browser() {
   let next=100; const saved={}; const nodes=new Map([['1',{id:'1',title:'Bookmarks bar'}]]), tabs=new Map(), visits=new Map(), groups=new Map();
   const api={
     storage:{local:{async get(k){return {[k]:structuredClone(saved[k])}},async set(v){Object.assign(saved,structuredClone(v))}}},
-    bookmarks:{async getTree(){return [{id:'0',children:[nodes.get('1')]}]},async create(v){const n={...v,id:String(next++)};nodes.set(n.id,n);return n},async get(id){if(!nodes.has(id))throw Error('gone');return [nodes.get(id)]},async removeTree(id){const remove=parent=>{for(const [key,n] of nodes)if(n.parentId===parent)remove(key);nodes.delete(parent)};remove(id)}},
-    tabs:{async create(v){const t={...v,id:next++};tabs.set(t.id,t);return t},async get(id){if(!tabs.has(id))throw Error('gone');return tabs.get(id)},async remove(id){tabs.delete(id)},async group({tabIds,groupId}){const id=groupId??next++;if(!groups.has(id))groups.set(id,{id});for(const t of tabIds)tabs.get(t).groupId=id;return id}},
+    bookmarks:{async getChildren(id){return [...nodes.values()].filter(n=>n.parentId===id);},async getSubTree(id){const visit=id=>({...nodes.get(id),children:[...nodes.values()].filter(n=>n.parentId===id).map(n=>visit(n.id))});if(!nodes.has(id))throw Error('gone');return [visit(id)];},async getTree(){return [{id:'0',children:[nodes.get('1')]}]},async create(v){const n={...v,id:String(next++)};nodes.set(n.id,n);return n},async get(id){if(!nodes.has(id))throw Error('gone');return [nodes.get(id)]},async removeTree(id){const remove=parent=>{for(const [key,n] of nodes)if(n.parentId===parent)remove(key);nodes.delete(parent)};remove(id)}},
+    tabs:{async query(){return [...tabs.values()]},async create(v){const t={...v,id:next++};tabs.set(t.id,t);return t},async get(id){if(!tabs.has(id))throw Error('gone');return tabs.get(id)},async remove(id){tabs.delete(id)},async group({tabIds,groupId}){const id=groupId??next++;if(!groups.has(id))groups.set(id,{id});for(const t of tabIds)tabs.get(t).groupId=id;return id}},
     tabGroups:{async update(id,v){Object.assign(groups.get(id),v)},async get(id){if(!groups.has(id))throw Error('No group');return groups.get(id)}},
     history:{async getVisits({url}){return visits.get(url)||[]},async addUrl(details){assert.deepEqual(Object.keys(details),['url']);visits.set(details.url,[{id:String(next++),visitTime:Date.now()}])},async deleteUrl({url}){visits.delete(url)}}
   };
@@ -80,4 +82,37 @@ test('Firefox without grouping still imports safely with Browser Bridge branding
  await importPackage(b.api,p,{bookmarks:true,tabs:true,space:'*',sessionID:'same'});
  assert.ok([...b.nodes.values()].some(n=>n.title.startsWith('Browser Bridge ·')));
  assert.equal(b.tabs.size,1);
+});
+
+
+test('connected transfer verifies intended folder paths and pin states rather than trusting a completed journal',async()=>{
+ const b=browser(); const options={bookmarks:true,tabs:true,history:false,groups:false,space:'*',sessionID:'connected'};
+ await connectedImport(b.api,payload,options);
+ const valid=await verifyImport(b.api,{package:payload,options});
+ assert.deepEqual(valid.mismatches,[]);assert.equal(valid.observed.bookmarks,1);assert.equal(valid.observed.tabs,1);
+ [...b.tabs.values()][0].pinned=false;
+ [...b.nodes.values()].find(n=>n.title==='Essentials').title='Moved by user';
+ const changed=await verifyImport(b.api,{package:payload,options});
+ assert.ok(changed.mismatches.some(text=>text.includes('pin state')));
+ assert.ok(changed.mismatches.some(text=>text.includes('folder path')));
+});
+
+
+test('connected retry recovers a bookmark creation before its journal checkpoint without a duplicate tree',async()=>{
+ const b=browser();let failed=false;const create=b.api.bookmarks.create;
+ b.api.bookmarks.create=async details=>{const node=await create(details);if(details.url&&!failed){failed=true;throw Error('Interrupted after create');}return node;};
+ const options={bookmarks:true,tabs:true,groups:false,space:'*',sessionID:'same'};
+ await assert.rejects(connectedImport(b.api,payload,options),/Interrupted/);
+ b.api.bookmarks.create=create;await connectedImport(b.api,payload,options);
+ const verified=await verifyImport(b.api,{package:payload,options});assert.deepEqual(verified.mismatches,[]);assert.equal(verified.observed.bookmarks,1);
+ assert.equal([...b.nodes.values()].filter(node=>node.title.startsWith('Browser Bridge ·')).length,1);
+});
+
+test('connected retry adopts an unambiguous tab created before its journal checkpoint',async()=>{
+ const b=browser();let failed=false;const create=b.api.tabs.create;
+ b.api.tabs.create=async details=>{const tab=await create(details);if(!failed){failed=true;throw Error('Interrupted after tab create');}return tab;};
+ const options={bookmarks:false,tabs:true,groups:false,space:'*',sessionID:'same'};
+ await assert.rejects(connectedImport(b.api,payload,options),/Interrupted/);
+ b.api.tabs.create=create;await connectedImport(b.api,payload,options);
+ assert.equal(b.tabs.size,1);const verified=await verifyImport(b.api,{package:payload,options});assert.deepEqual(verified.mismatches,[]);
 });
