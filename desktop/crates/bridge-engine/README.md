@@ -1,0 +1,17 @@
+# Portable engine boundary
+
+`Engine::new(root, resources)` and `dispatch(Value)` form the native desktop boundary. `default_root()` uses separate `BrowserBridgeDesktop` storage and honors trusted process environment `BROWSER_BRIDGE_DESKTOP_ROOT`. Native host authentication is a separate `native_dispatch(Caller, Value)` boundary; only the host observes OS parent metadata. Do not construct caller identity from extension labels or renderer JSON.
+
+Production automatic routes are empty. Guided packages contain browser-importable bookmark HTML, the unchanged portable capture and SHA-256 manifest. When `resources/Importer` is bundled, packages also contain the existing local tab/history importer with generated package data and setup instructions. Native browser-specific organization and credentials are not claimed as transferable.
+
+The validation coordinator is reachable only through a trusted Rust method or `bridge-host --validate DISPOSABLE_ROOT REQUEST.json`; state, both connected profiles and backups must be beneath that disposable root. The request has sourceId/destinationId/backupDirectory/options, or receiptId to resume. Set `BROWSER_BRIDGE_DESKTOP_ROOT` to the disposable state directory. Normal native host mode never accepts CLI/admin commands from extension messages. Public desktop JSON never enables validation mode.
+
+The journey captures source and destination, pauses for normal browser close, copies closed profiles into private staged checksummed backups, reopens the observed executable with exact profile arguments, requires fresh connector authentication, verifies the destination baseline, imports bounded batches with the existing JS helper journal, independently verifies intended results and checks the original destination again. Receipts omit URLs/captures/secrets. Cancel rejects claimed/completed jobs; cancelling an undelivered later step preserves the recoverable phase. Rollback requires explicit owned-tree removal confirmation and retains history and uncertain tabs.
+
+## Evidence and limits
+
+On macOS arm64, `cargo test --manifest-path desktop/Cargo.toml` exercises three public-boundary tests, including actual unchanged JS capture/import/verify/rollback modules over synthetic browser APIs. It reproduces an interruption after an import checkpoint, resumes without duplicate additions, verifies an existing grouped tab/nested bookmark baseline and rolls back owned additions. This is not real Windows/Linux browser acceptance. No personal browser profile or global native registration is used.
+
+Windows adapters use installed executable locations, per-user native-host registry entries, owner-only state ACLs and normal main-window close requests. Linux uses exact known installed executables and per-user native-host manifests; normal close currently pauses for the user rather than sending forceful signals. Unknown custom/sandbox installations fail closed. Windows ACL/registry/process behavior and Linux desktop lifecycle remain unverified here. Browser version is reported `unverified` until an OS version adapter is accepted; no automatic route can be enabled from it.
+
+Native input: 12 MiB; capture/results: 8 MiB; outgoing commands: 700,000 bytes. Oversized imports remain guided. State is bounded to 128 MiB; no automatic deletion of recovery evidence. Firefox temporary extension persistence remains an explicit limitation. Cookie/password transport is a later separately consented boundary.
