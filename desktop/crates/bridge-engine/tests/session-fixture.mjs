@@ -1,0 +1,7 @@
+import readline from 'node:readline';
+import {pathToFileURL} from 'node:url';
+const {runSession}=await import(pathToFileURL(process.argv[2]+'/Resources/Connector/sessions.mjs'));
+const role=process.argv[3],origin=process.argv[4],domain=new URL(origin).hostname;
+let cookies=role==='source'?[{name:'session',value:'fixture-session-secret',domain,path:'/',hostOnly:true,storeId:'0',secure:false,httpOnly:true,sameSite:'lax',session:true}]:[];
+const api={permissions:{async contains(){return true}},cookies:{async getAll(){return structuredClone(cookies)},async set(details){const {url,...cookie}=details;cookies=cookies.filter(c=>c.name!==cookie.name||c.path!==cookie.path);cookie.domain=new URL(url).hostname;cookie.hostOnly=true;cookie.storeId='0';cookie.session=!cookie.expirationDate;cookies.push(cookie);return structuredClone(cookie)}}};
+for await(const line of readline.createInterface({input:process.stdin})){try{const {operation,payload}=JSON.parse(line);let result;if(operation==='fixture.auth'){const response=await fetch(origin+'/whoami',{headers:{Cookie:cookies.map(c=>`${c.name}=${c.value}`).join('; ')}});const body=await response.json();result={httpStatus:response.status,authenticated:body.authenticated===true};}else result=await runSession(api,operation,payload);process.stdout.write(JSON.stringify({ok:true,...result})+'\n');}catch{process.stdout.write(JSON.stringify({ok:false,error:'Sensitive operation failed; review permission/scope and restage.'})+'\n')}}
