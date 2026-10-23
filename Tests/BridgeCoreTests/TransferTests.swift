@@ -246,13 +246,17 @@ private actor DestinationBaselineFixture {
     func restore(){restored=true}
 }
 
-@Test func automaticReadinessIsLimitedToTheAcceptedExactChromeToBraveRoute() throws {
+@Test func automaticReadinessIsLimitedToTheAcceptedArchitectureAndExactChromeToBraveRoute() throws {
     let root=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer {try? FileManager.default.removeItem(at:root)}
     let store=try ConnectorStore(root:root.appendingPathComponent("state"))
     let source=try store.pair(code:store.beginPairing(browser:.chrome,profile:root.appendingPathComponent("Chrome/Default")),browser:.chrome,profileID:UUID().uuidString,label:"Source",browserExecutable:"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",browserVersion:"156.0.8078.48")
     let destination=try store.pair(code:store.beginPairing(browser:.brave,profile:root.appendingPathComponent("Brave/Default")),browser:.brave,profileID:UUID().uuidString,label:"Destination",browserExecutable:"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",browserVersion:"156.1.98.60")
+    #if arch(arm64)
     #expect(AutomaticRoutes.allows(source,destination))
+    #else
+    #expect(!AutomaticRoutes.allows(source,destination))
+    #endif
     var changedSource=source;changedSource.browserVersion="156.0.8078.49"
     #expect(!AutomaticRoutes.allows(changedSource,destination))
     changedSource=source;changedSource.browserExecutable="/Applications/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
