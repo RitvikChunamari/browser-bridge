@@ -1,6 +1,7 @@
 import {captureBrowser} from './capture.mjs';
 import {importPackage, rollbackPackage} from './import.mjs';
 import {verifyImport} from './verify.mjs';
+import {runSession} from './sessions.mjs';
 const api = globalThis.browser || chrome;
 const host = 'local.browserbridge.connector';
 let port, pending, busy = false;
@@ -22,6 +23,7 @@ async function capabilities(){const result=['bookmarks','tabs'];for(const [name,
 async function sessionID(){const storage=api.storage.session; if(!storage)throw Error("This browser lacks session storage required for safe tab recovery."); let {bridgeSessionID}=await storage.get("bridgeSessionID");if(!bridgeSessionID){bridgeSessionID=crypto.randomUUID();await storage.set({bridgeSessionID});}return bridgeSessionID;}
 async function run(job,browser) {
   const payload=job.payload;
+  if(job.operation.startsWith('cookies.'))return runSession(api,job.operation,payload);
   switch(job.operation){
     case 'capture':return {capture:await captureBrowser(api,{browser,history:Boolean(payload.history)})};
     case 'import':return {journal:await importPackage(api,payload.package||payload,{bookmarks:true,tabs:true,history:false,groups:true,space:'*',limit:50,...payload.options,sessionID:await sessionID()})};
@@ -41,7 +43,7 @@ async function poll(){
     const job=response.job;if(!job)return;
     // Persist a completed result before acknowledgement. A lost acknowledgement must not repeat effects.
     const key='bridgeResult:'+job.id;let result=(await api.storage.local.get(key))[key];
-    if(!result){try{result={ok:true,...await run(job,response.browser)};}catch(error){result={ok:false,error:String(error.message||error)};}if(new TextEncoder().encode(JSON.stringify(result)).length>=8*1024*1024)result={ok:false,error:'Capture exceeds the 8 MiB connector limit. Use a guided file package.'};await api.storage.local.set({[key]:result});}
+    if(!result){try{result={ok:true,...await run(job,response.browser)};}catch(error){result={ok:false,error:job.operation.startsWith('cookies.')?'Sensitive operation needs permission or renewed consent. Review selected origins and restage.':String(error.message||error)};}if(new TextEncoder().encode(JSON.stringify(result)).length>=8*1024*1024)result={ok:false,error:'Capture exceeds the 8 MiB connector limit. Use a guided file package.'};await api.storage.local.set({[key]:result});}
     const ack=await request({action:'complete',...auth,jobID:job.id,result});if(!ack.ok)throw Error(ack.error);await api.storage.local.remove(key);
   }catch(error){await api.storage.local.set({bridgeStatus:String(error.message||error)});}finally{busy=false;}
 }

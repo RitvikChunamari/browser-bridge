@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Browser Bridge Connector",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Connect this specific browser profile to the local Browser Bridge app.",
   "permissions": [
     "nativeMessaging",
@@ -13,7 +13,8 @@
   ],
   "optional_permissions": [
     "history",
-    "tabGroups"
+    "tabGroups",
+    "cookies"
   ],
   "background": {
     "scripts": [
@@ -29,5 +30,10 @@
       "id": "connector@browser-bridge.local",
       "strict_min_version": "128.0"
     }
-  }
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ]
 }

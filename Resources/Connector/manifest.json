@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Browser Bridge Connector",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Connect this specific browser profile to the local Browser Bridge app.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsybcDwhjjJcaSfzoaXwElL3vf9qSAIvTQsWlZyg/NwO1Ww+4hsCDJKH494PUlx8le3K3lekkVVBwahoeHeuAaoiOSsdKzTybdXxAY5mSYDfGoyI4oiKGDd7ylL2TIbIQm1Bw7VgCf1BXRn9YgGI5weu3vWI871mo82+jdp4O6bqNz9BJqHaSZZkUZkeHDiEnpfycwJKj8veG5U/kSYJlK1kZoxvi0cQypX9lCdd2v0NDK2+YPcTEnL0qdovj2akHkzFOhkVRM1YNYTqPKuPI8P9y0211ZEDQCLtWKmMJOAzRctusAhPSqwtxCG7q6Cao05Jg3gryE+nMWnRb+XsEowIDAQAB",
   "permissions": [
@@ -14,7 +14,8 @@
   ],
   "optional_permissions": [
     "history",
-    "tabGroups"
+    "tabGroups",
+    "cookies"
   ],
   "background": {
     "service_worker": "background.js",
@@ -22,5 +23,10 @@
   },
   "action": {
     "default_popup": "index.html"
-  }
+  },
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ]
 }
