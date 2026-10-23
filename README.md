@@ -6,9 +6,17 @@ A free, MIT-licensed macOS manager for moving a portable browsing setup between 
 
 Choose a source, choose a destination, inspect what transfers, and create a private migration package. Browser Bridge keeps originals intact and reports approximations, manual steps and unsupported categories. It uses SwiftUI and system libraries; the built app has no paid services, accounts, uploads or external runtime dependencies.
 
-**Alpha 0.2.0 · Apple Silicon · macOS 14+**. Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
+**Beta 0.3.0 · Apple Silicon · macOS 14+**. Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
 
-## Quick start
+## Connected Transfer
+
+Connect each exact profile once using [local connector setup](docs/connector-setup.md), choose a backup folder, and acknowledge the normal browser quit. For accepted routes, **Transfer** captures live data, preserves a destination baseline, closes the selected browser apps normally, creates a checksummed backup, reopens the destination, imports and independently verifies the result. Paused receipts offer resume and conservative rollback.
+
+The verified automatic route is **Google Chrome 156.0.8078.48 → Brave 156.1.98.60** on Apple Silicon macOS. Other versions and directions use guided packages. Verification covers portable bookmarks, tabs/pins, exposed groups and selected history; native spaces and authenticated sessions are not recreated. See [actual verification evidence](docs/connected-verification.md).
+
+[Product website](https://ritvikchunamari.github.io/browser-bridge/). Windows, iOS, Android and Linux: coming soon, without announced dates.
+
+## Guided package quick start
 
 1. Open `Browser Bridge.app`. Choose the source and destination browser/profile.
 2. For Chromium tabs/pins/groups, click **Save capture helper…**, load it in the source browser, and save its local JSON capture. Attach that file in the app. The helper sees public windows/groups, not native Arc Spaces/Favorites or Zen Essentials.

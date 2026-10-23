@@ -22,3 +22,6 @@ User confirmed Browser Bridge naming, minimal connected-window mark, MIT license
 - Keep browser data local.
 - Support repeat imports and conservative rollback.
 - Make adapters and synthetic tests accessible to contributors.
+
+## Connected release direction
+Finish macOS first. After one-time setup per browser, users choose a source and destination and click Transfer; backup, progress and a result report are coordinated automatically, with browser/macOS prompts where required. The product website will use a dark, expressive direction with the existing Browser Bridge identity, hosted on GitHub Pages. Windows, iOS, Android and Linux are requested as Coming soon, without a release date or feature-parity promise. All eleven browsers remain visible; automatic Transfer is enabled only for pairs that pass real end-to-end checks, with guided fallbacks for the rest. Transfer may request a normal quit after capture, wait for exit, back up, and reopen the destination; it pauses on unsaved-work prompts and never force-quits. Distribution stays free with explicit local connector setup; no paid enrollment is authorized.

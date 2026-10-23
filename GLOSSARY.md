@@ -11,3 +11,12 @@
 - **Approximation**: a transfer retaining information with different destination behavior.
 - **Archive-only**: data preserved in backup without activation in the destination.
 - **Portable-file-only mode**: migration from a selected capture or bookmark file without reading or backing up the original source profile.
+
+## Connected migration
+
+**Connected browser profile**:
+A specific browser profile that has completed its one-time Browser Bridge setup and can participate in a coordinated transfer.
+
+**Transfer**:
+A user-started migration between a chosen source and destination, including backup, progress and a result report after one-time setup. Browser or macOS permission prompts may still require user action.
+_Avoid_: Zero-setup transfer, universal feature parity
