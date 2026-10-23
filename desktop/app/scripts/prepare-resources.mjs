@@ -1,0 +1,15 @@
+import {cp,mkdir,copyFile} from 'node:fs/promises';
+import {resolve,dirname} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const app=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+const root=resolve(app,'../..');
+const target=process.env.BRIDGE_TARGET;
+if(!target)throw Error('Set BRIDGE_TARGET to the Rust target triple.');
+const suffix=target.includes('windows')?'.exe':'';
+const compiled=process.env.BRIDGE_HOST_BINARY || resolve(root,'desktop/target',target,'release/bridge-host'+suffix);
+await mkdir(resolve(app,'src-tauri/binaries'),{recursive:true});
+await mkdir(resolve(app,'src-tauri/resources'),{recursive:true});
+for(const directory of ['Connector','Importer']) await cp(resolve(root,'Resources',directory),resolve(app,'src-tauri/resources',directory),{recursive:true});
+await copyFile(resolve(root,'Resources/ThirdPartyNotices.html'),resolve(app,'src-tauri/resources/ThirdPartyNotices.html'));
+await copyFile(compiled,resolve(app,'src-tauri/binaries/bridge-host-'+target+suffix));
+console.log('Prepared connector and native host for '+target);
