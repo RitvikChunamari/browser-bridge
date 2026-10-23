@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111810">
+<title>Import and export bookmarks with HTML — Browser Bridge</title>
+<meta name="description" content="Use a portable bookmarks HTML file on Mac when you need links and folders rather than live tabs or browser-specific workspaces.">
+<link rel="canonical" href="https://ritvikchunamari.github.io/browser-bridge/guides/bookmarks-html.html">
+<meta property="og:url" content="https://ritvikchunamari.github.io/browser-bridge/guides/bookmarks-html.html">
+<meta property="og:title" content="Import and export bookmarks with HTML — Browser Bridge">
+<meta property="og:description" content="Use a portable bookmarks HTML file on Mac when you need links and folders rather than live tabs or browser-specific workspaces.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="https://ritvikchunamari.github.io/browser-bridge/assets/social-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Browser Bridge: move your browsing setup on Mac">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Import and export bookmarks with HTML">
+<meta name="twitter:description" content="Use a portable bookmarks HTML file on Mac when you need links and folders rather than live tabs or browser-specific workspaces.">
+<meta name="twitter:image" content="https://ritvikchunamari.github.io/browser-bridge/assets/social-card.png">
+<link rel="icon" href="../assets/mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../style.css?v=0.3.1">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header">
+<a class="brand" href="../index.html">
+<img src="../assets/mark.svg" width="42" height="42" alt="">Browser Bridge</a>
+<nav aria-label="Main navigation">
+<a href="migrate-browser-mac.html">Guides</a>
+<a href="../index.html#support">Support</a>
+<a href="https://github.com/RitvikChunamari/browser-bridge">Star on GitHub ↗</a>
+</nav>
+</header>
+<main id="main" class="article">
+<a href="../index.html">← Browser Bridge for Mac</a>
+<h1>Import and export bookmarks with HTML</h1>
+<p class="article-summary">Use a portable bookmarks HTML file on Mac when you need links and folders rather than live tabs or browser-specific workspaces.</p>
+<p>A bookmarks HTML file is a practical common format when you mainly need saved links and folders. It is also a useful fallback when a connected route is unavailable. It does not preserve a full browser session: tabs, pin state, cookies, passwords and native workspace behavior are separate concerns.</p>
+<h2>Export the saved links</h2>
+<p>In Chrome, open the bookmark manager and use its export action to save bookmarks as HTML. Other browsers offer their own bookmark export controls. Follow the source browser’s official instructions and save the file somewhere private. The file can reveal personal browsing interests even though it contains no active login session.</p>
+<h2>Import with the destination’s tools</h2>
+<ol>
+<li>Keep an untouched copy of the exported HTML file.</li>
+<li>In Chrome, use the bookmarks-and-settings import flow, choose the file and complete the import. Existing bookmarks may affect where imported links appear.</li>
+<li>In Firefox, use its import workflow and choose the available file or browser source appropriate to your case. Review the selected categories rather than accepting assumptions.</li>
+<li>Safari can import HTML bookmarks exported by supported browsers. The exact menu wording depends on the macOS version; follow Apple’s guide for your installed version.</li>
+<li>Inspect several links and folder levels before deleting the source export or changing the original profile.</li>
+</ol>
+<h2>Use HTML with Browser Bridge</h2>
+<p>Attach a bookmark HTML file as portable input when you want to transfer only that exported collection. Portable-input mode backs up the chosen input; it does not secretly create a complete backup of the original browser profile. Choose the destination, read the preview and follow the guided import instructions in the resulting package.</p>
+<p>Keep expectations specific: bookmark folders can stand in for a collection of workspace URLs, but a folder is not a native Space, Essential or tab group. If your goal includes live tabs or history, inspect the route’s category support and consider a full profile export instead. Imported bookmarks can also produce duplicates if you repeatedly use unrelated import sessions.</p>
+<h2>What the beta can honestly promise</h2>
+<p>Browser Bridge is free, MIT licensed and local. The universal Mac app requires macOS 14 or later and contains Apple silicon and Intel binaries. Intel runtime has not been verified; Intel transfers remain guided. Automatic transfer is verified only for Chrome 156.0.8078.48 → Brave 156.1.98.60 on Apple silicon, after one-time connector and backup-folder setup. Other versions, directions and browser pairs remain guided.</p>
+<p>Passwords, passkeys and active cookie sessions do not transfer automatically. Use the destination browser’s own import tools for sensitive credentials. Keep exports private and remove temporary credential files when finished. Exact native Spaces, Essentials, Favorites and extension-state parity is not promised. A profile backup is a recovery archive, not a promise another browser can read every file inside it.</p>
+<h2>Official browser references</h2>
+<ul>
+<li>
+<a href="https://support.google.com/chrome/answer/96816">Google: import and export Chrome bookmarks</a>
+</li>
+<li>
+<a href="https://support.mozilla.org/en-US/kb/import-data-another-browser">Mozilla: import data from another browser</a>
+</li>
+<li>
+<a href="https://support.apple.com/guide/safari/ibrw1015/mac">Apple: import bookmarks and history in Safari</a>
+</li>
+</ul>
+<h2>Continue planning your move</h2>
+<ul>
+<li>
+<a href="migrate-browser-mac.html">How to migrate browsers on Mac</a>
+</li>
+<li>
+<a href="zen-to-dia.html">Move from Zen to Dia on Mac</a>
+</li>
+<li>
+<a href="chrome-to-brave.html">Transfer Chrome to Brave on Mac</a>
+</li>
+</ul>
+<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.1-beta">Download the universal Mac beta ↓</a>
+<p class="release-note">macOS 14+ · Apple silicon and Intel · Intel runtime unverified, guided only.</p>
+</main>
+<footer>
+<a class="brand" href="../index.html">Browser Bridge</a>
+<a href="https://github.com/RitvikChunamari/browser-bridge/blob/main/LICENSE">MIT licensed</a>
+</footer>
+</body>
+</html>
