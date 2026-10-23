@@ -56,8 +56,13 @@ public enum AutomaticRoutes {
         AutomaticRouteAcceptance(source:.chrome,sourceVersion:"156.0.8078.48",sourceExecutableName:"Google Chrome",destination:.brave,destinationVersion:"156.1.98.60",destinationExecutableName:"Brave Browser",evidence:"docs/connected-verification.md — uninterrupted macOS lifecycle and destination baseline, 2026-10-23")
     ]
     public static func allows(_ source: ConnectorConnection, _ destination: ConnectorConnection) -> Bool {
+        #if arch(arm64)
         guard source.id != destination.id,source.profilePath != destination.profilePath,let a=source.browserExecutable,let b=destination.browserExecutable else { return false }
         return accepted.contains { $0.source==source.browser && $0.destination==destination.browser && $0.sourceVersion==source.browserVersion && $0.destinationVersion==destination.browserVersion && $0.sourceExecutableName==URL(fileURLWithPath:a).lastPathComponent && $0.destinationExecutableName==URL(fileURLWithPath:b).lastPathComponent }
+        #else
+        // Intel binaries compile for guided transfer; their native browser lifecycle is unverified.
+        return false
+        #endif
     }
 }
 public actor TransferCoordinator {
