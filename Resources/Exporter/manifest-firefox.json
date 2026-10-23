@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Bridge \u2014 local capture",
+  "version": "1.0.0",
+  "description": "Capture portable bookmarks, tabs, pins and available groups to a local file. No network access.",
+  "permissions": [
+    "bookmarks",
+    "tabs"
+  ],
+  "optional_permissions": [
+    "history",
+    "tabGroups"
+  ],
+  "action": {
+    "default_title": "Open Browser Bridge capture"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'self'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "capture@browser-bridge.local",
+      "strict_min_version": "128.0"
+    }
+  }
+}
