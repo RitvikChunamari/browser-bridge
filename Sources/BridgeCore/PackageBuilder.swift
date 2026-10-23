@@ -179,7 +179,12 @@ public struct PackageBuilder: Sendable {
         let fm = FileManager.default
         let canonicalProfile = (profile.path as NSString).resolvingSymlinksInPath
         var seen = Set<String>()
-        for root in browser.roots() {
+        var contextRoots = browser.roots()
+        // Explicit custom Chromium user-data directories have the same known global metadata.
+        if browser.family == .chromium, profile.lastPathComponent == "Default" || profile.lastPathComponent.hasPrefix("Profile ") {
+            contextRoots.append(profile.deletingLastPathComponent())
+        }
+        for root in contextRoots {
             let base = (root.path as NSString).resolvingSymlinksInPath
             guard canonicalProfile == base || canonicalProfile.hasPrefix(base + "/") else { continue }
             for file in try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) {
