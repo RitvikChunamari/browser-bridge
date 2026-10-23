@@ -117,7 +117,7 @@ Controls have gently softened corners; the demonstration has the larger radius t
 - **Navigation:** compact text links remain visually quiet. The brand combines the preserved mark and a sans-serif wordmark. A skip link moves into view on focus.
 - **Transfer runway:** labeled native selectors flank a branching SVG path. The illustrative folder list is static. Only activation animates the path; the result is announced through a polite live region. Identical source and destination disable simulation. Route changes cancel an active simulation and reset its result.
 - **Route state:** source, destination and family filter are reflected in URL query parameters. Safari routes explicitly limit the simulation to bookmark HTML. No browser access is implied by the illustration.
-- **Support ledger:** a native select filters eleven browser rows by family and updates a polite browser count. The table uses header associations, fine horizontal rules and no enclosing row cards. Every current row is guided alpha.
+- **Support ledger:** a native select filters eleven browser rows by family and updates a polite browser count. The table uses header associations, fine horizontal rules and no enclosing row cards. Chrome source and Brave destination rows show the exact-version automatic route; all other versions/directions/pairs remain guided beta.
 - **Motion:** the path runs for roughly 1.1 seconds after activation. Reduced-motion preference removes its animation and completes the simulated result without delay; smooth anchor scrolling also becomes immediate.
 
 **The Honest Demonstration Rule.** Keep the simulation label, illustrative-data disclaimer and route-specific boundaries visible. Do not style a simulated result as proof of a real transfer.
@@ -129,7 +129,7 @@ Do:
 - Use leaf green for meaningful emphasis, actions and visible focus.
 - Keep section rhythm, serif hierarchy and dense support information distinct.
 - Retain local assets, reduced-motion behavior and keyboard access.
-- Keep the alpha state and guided-route boundaries beside relevant actions.
+- Keep the beta state, exact verified versions and guided-route boundaries beside relevant actions.
 
 Don't:
 - Apply this dark website world to the native app without a separate direction decision.
