@@ -1,0 +1,8 @@
+[package]
+name = "bridge-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+[dependencies]
+bridge-engine = { path = "../bridge-engine" }
+serde_json = "1"
