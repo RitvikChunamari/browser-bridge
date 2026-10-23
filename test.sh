@@ -11,4 +11,7 @@ if [ -n "$BRIDGE_TEST_FRAMEWORKS" ]; then
 else
     swift test --build-system native
 fi
-node --test Tests/Importer/*.test.mjs
+node --test Tests/Importer/*.test.mjs Tests/Sessions/*.test.mjs
+BRIDGE_CARGO=${BRIDGE_CARGO:-$(command -v cargo || true)}
+if [ -z "$BRIDGE_CARGO" ]; then echo "Rust stable is required for portable/sensitive journey tests (https://rustup.rs)." >&2; exit 1; fi
+"$BRIDGE_CARGO" test --locked --manifest-path desktop/Cargo.toml --workspace

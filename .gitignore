@@ -5,3 +5,13 @@ outputs/
 .impeccable/
 
 .playwright-mcp/
+
+# Portable desktop build products
+desktop/target/
+desktop/app/node_modules/
+desktop/app/src-tauri/target/
+desktop/app/src-tauri/binaries/
+desktop/app/src-tauri/resources/
+
+# Tauri generated build schemas
+desktop/app/src-tauri/gen/

@@ -2,11 +2,11 @@
 
 # Browser Bridge
 
-A free, MIT-licensed macOS manager for moving a portable browsing setup between **Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi**.
+A free, MIT-licensed browser migration manager with a native Mac app and a Windows/Linux desktop preview for moving a portable browsing setup between **Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi**.
 
-Choose a source, choose a destination, inspect what transfers, and create a private migration package. Browser Bridge keeps originals intact and reports approximations, manual steps and unsupported categories. It uses SwiftUI and system libraries; the built app has no paid services, accounts, uploads or external runtime dependencies.
+Choose a source, choose a destination, inspect what transfers, and create a private migration package. Browser Bridge keeps originals intact and reports approximations, manual steps and unsupported categories. The Mac app uses SwiftUI with a bundled Rust credential helper; Windows/Linux use a Rust engine and Tauri interface. There are no paid services, migration accounts or cloud uploads.
 
-**Beta 0.3.1 · Universal Mac (Apple Silicon + Intel) · macOS 14+**. Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
+**0.4 development preview · Universal Mac (Apple Silicon + Intel) · macOS 14+; Windows/Linux packages require their reported CI/runtime checks.** Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
 
 If Browser Bridge helps you move browsers, [star the repository on GitHub](https://github.com/RitvikChunamari/browser-bridge) to find it again and support its discovery. Bug reports and reproducible browser fixtures are welcome too.
 
@@ -16,12 +16,12 @@ Connect each exact profile once using [local connector setup](docs/connector-set
 
 The verified automatic route is **Google Chrome 156.0.8078.48 → Brave 156.1.98.60** on Apple Silicon macOS. Other versions and directions use guided packages. Intel Macs use guided migration; the Intel build is cross-compiled and has not yet been runtime-tested on Intel hardware. Verification covers portable bookmarks, tabs/pins, exposed groups and selected history; native spaces and authenticated sessions are not recreated. See [actual verification evidence](docs/connected-verification.md).
 
-[Product website](https://ritvikchunamari.github.io/browser-bridge/). Windows, iOS, Android and Linux: coming soon, without announced dates.
+[Product website](https://ritvikchunamari.github.io/browser-bridge/). [Windows/Linux preview build instructions and evidence boundaries](desktop/README.md). Requested targets are Windows 10 x64, Windows 11 x64/ARM64, Ubuntu 24.04 x64/ARM64, Debian 13 x64 and Fedora 44 x64. Production automatic Windows/Linux routes remain disabled until real browser acceptance; package builds are a separate result. iOS and Android remain coming soon.
 
 ## Guided package quick start
 
 1. Open `Browser Bridge.app`. Choose the source and destination browser/profile.
-2. For Chromium tabs/pins/groups, click **Save capture helper…**, load it in the source browser, and save its local JSON capture. Attach that file in the app. The helper sees public windows/groups, not native Arc Spaces/Favorites or Zen Essentials.
+2. Arc/Safari can optionally **Capture native open windows…** on Mac, with Automation consent and a review of all exposed windows. For other Chromium tabs/pins/groups, click **Save capture helper…**, load it in the source browser, and save its local JSON capture. Attach that file in the app. The helper sees public windows/groups, not native Arc Spaces/Favorites or Zen Essentials.
 3. Review **Transfer plan** and **Browser support**. Select an existing destination profile for backup, or explicitly confirm a new/separately backed-up profile.
 4. Quit selected profile browsers with **⌘Q**. Create the package outside both browser data directories. Large copies/checksums can take several minutes.
 5. Read the package’s `READ ME.md`. Chromium destinations load its `Importer` folder via `chrome://extensions` → Developer mode → Load unpacked. Firefox/Zen load `Importer/manifest.json` via `about:debugging#/runtime/this-firefox` → Load Temporary Add-on. Safari uses manual bookmark HTML import.
@@ -42,13 +42,13 @@ A capture fills missing local tabs/bookmarks/history. If the native profile alre
 | Browser | Source route | Destination route | Native feature boundary |
 |---|---|---|---|
 | Helium | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
-| Arc | Chromium profile + live capture | Chromium helper | Sidebar Spaces/Favorites/nested folders are not decoded; known Storable files backed up when found |
+| Arc | Chromium profile + live capture | Chromium helper | Optional macOS scripting captures exposed Spaces/Favorites and tab locations; folder hierarchy/native destination writes are unavailable; known Storable files retained |
 | Zen | Mozilla profile + Zen session metadata | Firefox-family helper | Essentials → pins; spaces/nested folders → bookmark trees |
 | Dia | Chromium profile + live capture | Chromium helper | Native Favorites/spaces and persistence are not created/verified |
 | Chrome | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave route verified; other versions guided |
 | Firefox | Mozilla profile/session + live capture | Firefox helper, 128+ | Newer group APIs detected at runtime; temporary add-on limitations apply |
 | Brave | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave destination verified; other routes guided |
-| Safari | Readable plist/history files or HTML | Manual bookmark HTML import | No unpacked helper; tabs/groups become bookmark fallback where available; history activation not implemented |
+| Safari | Readable plist/history, HTML or optional native open-window capture | Manual bookmark HTML import | Ordinary tabs captured with Automation consent; private windows must be closed; pins/Tab Groups unknown; history activation unavailable |
 | Edge | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
 | Opera | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
 | Vivaldi | Chromium profile + live capture | Chromium helper | Native workspaces/tab stacks not decoded |
@@ -62,7 +62,8 @@ Browser discovery includes standard data directories and a manual-folder option.
 - **Groups/folders:** nested bookmark trees where exposed; live groups use full folder paths because browser groups do not universally nest. Pinned Chromium tabs cannot belong to groups. Later batches reuse groups during the same browser session.
 - **Spaces/Essentials/Favorites:** portable approximations only where the source exposes metadata. Generic capture windows approximate spaces. No native destination spaces/Favorites are created.
 - **History:** source timestamps are exported where readable; capture is opt-in and bounded to the 10,000 most recent URLs. Import adds URLs with import-time timestamps only when destination visits do not already exist. Rollback retains history for review.
-- **Passwords/passkeys/cookies:** original files remain encrypted in backups; no credential decryption or session activation. Use browsers’ own password export/import where offered. Passkeys require their provider; Keychain data is not exported.
+- **Passwords:** use browser-managed CSV export/import and authentication prompts. The separate [protected credential flow](docs/sensitive-transfer.md) encrypts staged exports, preserves originals and cleans owned temporary CSV files; import completion is user-confirmed. Passkeys require their provider; Keychain data is not exported.
+- **Sessions:** the [origin-scoped sealed cookie pipeline](docs/session-transfer.md) is synthetic-tested, with no real browser/OS route accepted yet. Production activation stays gated. Cookie verification does not prove a working login; device binding and website policy can require sign-in again.
 - **Extensions/settings/other state:** original profile files are retained. Incompatible settings and extension data are not activated in the destination.
 
 ## Safety and package contents
@@ -86,11 +87,11 @@ bash build.sh
 bash test.sh
 ```
 
-Use Apple Swift tools on macOS and Node.js for helper tests. The build produces both Apple Silicon and Intel slices for the app and native host. See [universal Mac verification](docs/universal-mac.md). The build uses no package downloads or paid APIs. `swift scripts/brand.swift Assets/Brand` regenerates the original logo PNGs and ICNS icon locally. The app is signed ad hoc, not notarized for public distribution; no paid Apple account is required for a local source build.
+Use Apple Swift tools on macOS, Node.js 24, and free Rust stable. Add both Mac Rust targets with `rustup target add aarch64-apple-darwin x86_64-apple-darwin`. The build produces Apple Silicon and Intel slices for the app, native host and protected credential helper. See [universal Mac verification](docs/universal-mac.md). Cargo/npm fetch open-source dependencies for the new desktop and credential components; no paid APIs or services are used. `swift scripts/brand.swift Assets/Brand` regenerates the original logo PNGs and ICNS icon locally. The app is signed ad hoc, not notarized for public distribution; no paid Apple account is required for a local source build.
 
 For a synthetic preview: `open -n 'outputs/Browser Bridge.app' --args --demo` (export is disabled). Read-only CLI inventory: `swift run --build-system native bridge-inspect chrome '/path/to/profile'`; it prints counts/warnings, not URLs or credentials.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [verification](docs/verification.md), [MIT license](LICENSE), and [brand assets](Assets/Brand). Public source: [RitvikChunamari/browser-bridge](https://github.com/RitvikChunamari/browser-bridge).
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [verification](docs/verification.md), [MIT license](LICENSE), [third-party notices](Resources/ThirdPartyNotices.html), and [brand assets](Assets/Brand). Public source: [RitvikChunamari/browser-bridge](https://github.com/RitvikChunamari/browser-bridge).
 
 ## Primary references
 

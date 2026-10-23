@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")"
+BRIDGE_CARGO=${BRIDGE_CARGO:-$(command -v cargo || true)}
+if [ -z "$BRIDGE_CARGO" ]; then
+    echo "Rust stable is required for the protected credential helper. Install it from https://rustup.rs, then add aarch64-apple-darwin and x86_64-apple-darwin targets." >&2
+    exit 1
+fi
+for BRIDGE_RUST_TARGET in aarch64-apple-darwin x86_64-apple-darwin; do
+    MACOSX_DEPLOYMENT_TARGET=14.0 "$BRIDGE_CARGO" build --locked --release --manifest-path desktop/Cargo.toml --package bridge-sensitive --bin bridge-credentials --target "$BRIDGE_RUST_TARGET" --target-dir work/universal-build/rust
+done
 swift scripts/brand.swift Assets/Brand
 
 # Separate build trees prevent the two architecture link steps from sharing products.
@@ -23,8 +31,16 @@ for BRIDGE_PRODUCT in BrowserBridge browser-bridge-host; do
         esac
     done
 done
+/usr/bin/lipo -create work/universal-build/rust/aarch64-apple-darwin/release/bridge-credentials work/universal-build/rust/x86_64-apple-darwin/release/bridge-credentials -output "$BRIDGE_STAGE/Contents/MacOS/bridge-credentials"
+BRIDGE_CREDENTIAL_SLICES=$(/usr/bin/lipo -archs "$BRIDGE_STAGE/Contents/MacOS/bridge-credentials")
+for BRIDGE_REQUIRED in arm64 x86_64; do
+    case " $BRIDGE_CREDENTIAL_SLICES " in
+        *" $BRIDGE_REQUIRED "*) ;;
+        *) echo "Missing $BRIDGE_REQUIRED slice in bridge-credentials" >&2; exit 1 ;;
+    esac
+done
 cp -R Resources/Connector Resources/Importer Resources/Exporter "$BRIDGE_STAGE/Contents/Resources/"
-cp Assets/Brand/BrowserBridge.icns Assets/Brand/app-icon.png LICENSE "$BRIDGE_STAGE/Contents/Resources/"
+cp Assets/Brand/BrowserBridge.icns Assets/Brand/app-icon.png LICENSE Resources/ThirdPartyNotices.html "$BRIDGE_STAGE/Contents/Resources/"
 cat > "$BRIDGE_STAGE/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -35,17 +51,22 @@ cat > "$BRIDGE_STAGE/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>BrowserBridge</string>
 <key>CFBundleIconFile</key><string>BrowserBridge.icns</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.3.1</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>0.4.0</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
+<key>NSAppleEventsUsageDescription</key><string>Optionally read exposed Arc or Safari tabs and Spaces for a local capture you review before migration.</string>
 </dict></plist>
 PLIST
 # Sign after lipo, from the nested host outward. Ad-hoc signing requires no paid enrollment.
-/usr/bin/codesign --force --sign - "$BRIDGE_STAGE/Contents/MacOS/browser-bridge-host"
+for BRIDGE_NESTED in browser-bridge-host bridge-credentials; do
+    /usr/bin/codesign --force --sign - "$BRIDGE_STAGE/Contents/MacOS/$BRIDGE_NESTED"
+done
 /usr/bin/codesign --force --sign - "$BRIDGE_STAGE"
 for BRIDGE_ARCH in arm64 x86_64; do
-    /usr/bin/codesign --verify --strict --architecture "$BRIDGE_ARCH" "$BRIDGE_STAGE/Contents/MacOS/browser-bridge-host"
+    for BRIDGE_NESTED in browser-bridge-host bridge-credentials; do
+        /usr/bin/codesign --verify --strict --architecture "$BRIDGE_ARCH" "$BRIDGE_STAGE/Contents/MacOS/$BRIDGE_NESTED"
+    done
     /usr/bin/codesign --verify --strict --architecture "$BRIDGE_ARCH" "$BRIDGE_STAGE"
 done
 mkdir -p outputs

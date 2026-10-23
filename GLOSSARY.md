@@ -20,3 +20,12 @@ A specific browser profile that has completed its one-time Browser Bridge setup 
 **Transfer**:
 A user-started migration between a chosen source and destination, including backup, progress and a result report after one-time setup. Browser or macOS permission prompts may still require user action.
 _Avoid_: Zero-setup transfer, universal feature parity
+
+**Credential transfer**:
+Moving passwords or other supported sign-in credentials through an available export/import or provider exchange, with the user's consent and required authentication.
+
+**Cookie transfer**:
+Copying selected website cookies between browser profiles. This alone does not establish that a website recognizes the destination as signed in.
+
+**Verified session continuity**:
+Evidence that a selected website still recognizes the user as signed in after migration. A device-bound or expired session may require a new sign-in even when its cookies were copied.
