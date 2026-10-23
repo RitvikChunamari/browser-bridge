@@ -72,15 +72,15 @@ Safari manual imports have no helper rollback. Raw profile recovery is manual: q
 ## Build, test and contribute
 
 ```sh
-./build.sh
-./test.sh
+bash build.sh
+bash test.sh
 ```
 
 Use Apple Swift tools on macOS and Node.js for helper tests. The build uses no package downloads or paid APIs. `swift scripts/brand.swift Assets/Brand` regenerates the original logo PNGs and ICNS icon locally. The app is signed ad hoc, not notarized for public distribution; no paid Apple account is required for a local source build.
 
 For a synthetic preview: `open -n 'outputs/Browser Bridge.app' --args --demo` (export is disabled). Read-only CLI inventory: `swift run --build-system native bridge-inspect chrome '/path/to/profile'`; it prints counts/warnings, not URLs or credentials.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [verification](docs/verification.md), [MIT license](LICENSE), and [brand assets](Assets/Brand). No public repository URL is invented; this checkout is ready to publish after choosing its destination.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [verification](docs/verification.md), [MIT license](LICENSE), and [brand assets](Assets/Brand). Public source: [RitvikChunamari/browser-bridge](https://github.com/RitvikChunamari/browser-bridge).
 
 ## Primary references
 
