@@ -3,3 +3,5 @@
 work/
 outputs/
 .impeccable/
+
+.playwright-mcp/

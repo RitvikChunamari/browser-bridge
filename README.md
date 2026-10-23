@@ -6,13 +6,15 @@ A free, MIT-licensed macOS manager for moving a portable browsing setup between 
 
 Choose a source, choose a destination, inspect what transfers, and create a private migration package. Browser Bridge keeps originals intact and reports approximations, manual steps and unsupported categories. It uses SwiftUI and system libraries; the built app has no paid services, accounts, uploads or external runtime dependencies.
 
-**Beta 0.3.0 · Apple Silicon · macOS 14+**. Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
+**Beta 0.3.1 · Universal Mac (Apple Silicon + Intel) · macOS 14+**. Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
+
+If Browser Bridge helps you move browsers, [star the repository on GitHub](https://github.com/RitvikChunamari/browser-bridge) to find it again and support its discovery. Bug reports and reproducible browser fixtures are welcome too.
 
 ## Connected Transfer
 
 Connect each exact profile once using [local connector setup](docs/connector-setup.md), choose a backup folder, and acknowledge the normal browser quit. For accepted routes, **Transfer** captures live data, preserves a destination baseline, closes the selected browser apps normally, creates a checksummed backup, reopens the destination, imports and independently verifies the result. Paused receipts offer resume and conservative rollback.
 
-The verified automatic route is **Google Chrome 156.0.8078.48 → Brave 156.1.98.60** on Apple Silicon macOS. Other versions and directions use guided packages. Verification covers portable bookmarks, tabs/pins, exposed groups and selected history; native spaces and authenticated sessions are not recreated. See [actual verification evidence](docs/connected-verification.md).
+The verified automatic route is **Google Chrome 156.0.8078.48 → Brave 156.1.98.60** on Apple Silicon macOS. Other versions and directions use guided packages. Intel Macs use guided migration; the Intel build is cross-compiled and has not yet been runtime-tested on Intel hardware. Verification covers portable bookmarks, tabs/pins, exposed groups and selected history; native spaces and authenticated sessions are not recreated. See [actual verification evidence](docs/connected-verification.md).
 
 [Product website](https://ritvikchunamari.github.io/browser-bridge/). Windows, iOS, Android and Linux: coming soon, without announced dates.
 
@@ -43,9 +45,9 @@ A capture fills missing local tabs/bookmarks/history. If the native profile alre
 | Arc | Chromium profile + live capture | Chromium helper | Sidebar Spaces/Favorites/nested folders are not decoded; known Storable files backed up when found |
 | Zen | Mozilla profile + Zen session metadata | Firefox-family helper | Essentials → pins; spaces/nested folders → bookmark trees |
 | Dia | Chromium profile + live capture | Chromium helper | Native Favorites/spaces and persistence are not created/verified |
-| Chrome | Chromium profile + live capture | Chromium helper | Public APIs tested in isolated Chromium, not every Chrome release |
+| Chrome | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave route verified; other versions guided |
 | Firefox | Mozilla profile/session + live capture | Firefox helper, 128+ | Newer group APIs detected at runtime; temporary add-on limitations apply |
-| Brave | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
+| Brave | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave destination verified; other routes guided |
 | Safari | Readable plist/history files or HTML | Manual bookmark HTML import | No unpacked helper; tabs/groups become bookmark fallback where available; history activation not implemented |
 | Edge | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
 | Opera | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
@@ -84,7 +86,7 @@ bash build.sh
 bash test.sh
 ```
 
-Use Apple Swift tools on macOS and Node.js for helper tests. The build uses no package downloads or paid APIs. `swift scripts/brand.swift Assets/Brand` regenerates the original logo PNGs and ICNS icon locally. The app is signed ad hoc, not notarized for public distribution; no paid Apple account is required for a local source build.
+Use Apple Swift tools on macOS and Node.js for helper tests. The build produces both Apple Silicon and Intel slices for the app and native host. See [universal Mac verification](docs/universal-mac.md). The build uses no package downloads or paid APIs. `swift scripts/brand.swift Assets/Brand` regenerates the original logo PNGs and ICNS icon locally. The app is signed ad hoc, not notarized for public distribution; no paid Apple account is required for a local source build.
 
 For a synthetic preview: `open -n 'outputs/Browser Bridge.app' --args --demo` (export is disabled). Read-only CLI inventory: `swift run --build-system native bridge-inspect chrome '/path/to/profile'`; it prints counts/warnings, not URLs or credentials.
 
