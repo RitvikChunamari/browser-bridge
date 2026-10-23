@@ -12,11 +12,21 @@ import BridgeCore
     }
 }
 enum Page: String, CaseIterable, Identifiable {
-    case overview = "Overview", plan = "Transfer plan", support = "Browser support", packages = "Saved packages"
+    case transfer = "Transfer", connections = "Connections", overview = "Overview", plan = "Transfer plan", support = "Browser support", packages = "Saved packages"
     var id: String { rawValue }
-    var symbol: String { switch self { case .overview: "square.grid.2x2"; case .plan: "arrow.triangle.branch"; case .support: "globe"; case .packages: "archivebox" } }
+    var symbol: String { switch self { case .transfer: "arrow.left.arrow.right"; case .connections: "link"; case .overview: "square.grid.2x2"; case .plan: "arrow.triangle.branch"; case .support: "globe"; case .packages: "archivebox" } }
 }
 @MainActor @Observable final class MigrationStore {
+    var transferring = false
+    var transferReceipt: TransferReceipt?
+    var transferReceipts: [TransferReceipt] = []
+    var transferHistory = false
+    var transferGroups = false
+    var gracefulQuitAcknowledged = false
+    var connectorConnections: [ConnectorConnection] = []
+    var pairingCode = ""
+    var connectorLocation: URL?
+    var profileAssociationConfirmed = false
     var profiles: [BrowserProfile] = []
     var targetProfiles: [BrowserProfile] = []
     var sourceBrowser: BrowserID = .zen
@@ -33,13 +43,97 @@ enum Page: String, CaseIterable, Identifiable {
     var error: String?
     var notice: String?
     var savedPaths: [String] = UserDefaults.standard.stringArray(forKey: "packages") ?? UserDefaults(suiteName: "local.zenbridge.manager")?.stringArray(forKey: "packages") ?? []
-    var page: Page = .overview
+    var backupDirectory: URL? = UserDefaults.standard.url(forKey: "transferBackupDirectory")
+    var page: Page = .transfer
     let demo = CommandLine.arguments.contains("--demo")
     var selected: BrowserProfile? { profiles.first { $0.id == selectedID } }
     var target: BrowserProfile? { targetProfiles.first { $0.id == targetID } }
     var packageURLs: [URL] { savedPaths.map { URL(fileURLWithPath: $0) } }
-    var canCreate: Bool { !demo && !loading && !creating && snapshot != nil && (portableOnly ? captureURL != nil : selected != nil) && (target != nil || destinationBackedUp) }
+    var canCreate: Bool { !demo && !loading && !creating && !transferring && snapshot != nil && (portableOnly ? captureURL != nil : selected != nil) && (target != nil || destinationBackedUp) }
 
+    var connectedSource: ConnectorConnection? { connectorConnections.first { $0.browser == sourceBrowser && $0.profilePath == selected?.path.standardizedFileURL.path } }
+    var connectedDestination: ConnectorConnection? { connectorConnections.first { $0.browser == targetBrowser && $0.profilePath == target?.path.standardizedFileURL.path } }
+    var automaticTransferReady: Bool {
+        guard !demo, !transferring, backupDirectory != nil, gracefulQuitAcknowledged, let source = connectedSource, let destination = connectedDestination else { return false }
+        return source.connected && destination.connected && AutomaticRoutes.allows(source, destination)
+    }
+    private func transferCoordinator() throws -> TransferCoordinator {
+        guard let resources = Bundle.main.resourceURL else { throw ConnectorError.rejected("Open the packaged Mac app to transfer.") }
+        return TransferCoordinator(store: try ConnectorStore(), lifecycle: MacBrowserLifecycle(), importerResources: resources.appendingPathComponent("Importer"))
+    }
+    func refreshTransfers() {
+        refreshConnections()
+        guard !demo else { return }
+        Task { do { transferReceipts = try await transferCoordinator().receipts() } catch { self.error = error.localizedDescription } }
+    }
+    func chooseBackupDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose where transfer backups are saved"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.directoryURL = backupDirectory
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        backupDirectory = folder
+        UserDefaults.standard.set(folder, forKey: "transferBackupDirectory")
+    }
+    func startTransfer() {
+        guard automaticTransferReady, let source = connectedSource, let destination = connectedDestination else { return }
+        guard let backupDirectory else { return }
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let package = backupDirectory.appendingPathComponent("Browser Bridge \(stamp) \(UUID().uuidString.prefix(8))", isDirectory: true)
+        do {
+            let coordinator = try transferCoordinator()
+            let options = TransferOptions(history: transferHistory, groups: transferGroups)
+            transferring = true; error = nil
+            Task {
+                let monitor = Task { while !Task.isCancelled { self.transferReceipt = await coordinator.currentReceipt; try? await Task.sleep(for: .milliseconds(400)) } }
+                defer { monitor.cancel(); transferring = false; refreshTransfers() }
+                do { transferReceipt = try await coordinator.transfer(source: source, destination: destination, package: package, options: options); notice = "Transfer verified. Review its receipt and retained backup." }
+                catch { transferReceipt = await coordinator.currentReceipt; self.error = error.localizedDescription }
+            }
+        } catch { self.error = error.localizedDescription }
+    }
+    func recoverTransfer(_ receipt: TransferReceipt, rollback: Bool = false) {
+        guard !demo, !transferring else { return }
+        if rollback {
+            let alert = NSAlert(); alert.messageText = "Roll back helper changes?"
+            alert.informativeText = "This removes Browser Bridge’s bookmark trees, including any edits you made inside them. Only unchanged tabs in the same browser session can close. History, navigated tabs and tabs from earlier browser sessions are retained. Your original backup stays intact."
+            alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Roll back helper changes")
+            guard alert.runModal() == .alertSecondButtonReturn else { return }
+        }
+        do {
+            let coordinator = try transferCoordinator(); transferring = true; error = nil
+            Task {
+                let monitor = Task { while !Task.isCancelled { self.transferReceipt = await coordinator.currentReceipt; try? await Task.sleep(for: .milliseconds(400)) } }
+                defer { monitor.cancel(); transferring = false; refreshTransfers() }
+                do {
+                    let url = URL(fileURLWithPath: receipt.receiptPath)
+                    transferReceipt = rollback ? try await coordinator.rollback(receiptURL: url, confirmedOwnedBookmarkEditsRemoval: true) : try await coordinator.resume(receiptURL: url)
+                    notice = "Recovery finished. Review its observed result and any retained items."
+                } catch { transferReceipt = await coordinator.currentReceipt; self.error = error.localizedDescription }
+            }
+        } catch { self.error = error.localizedDescription }
+    }
+    func cancelUndelivered(_ receipt: TransferReceipt) {
+        guard !demo, !transferring else { return }
+        Task { do { transferReceipt = try await transferCoordinator().cancelUnclaimed(receiptURL: URL(fileURLWithPath: receipt.receiptPath)); refreshTransfers() } catch { self.error = error.localizedDescription } }
+    }
+    func refreshConnections() {
+        guard !demo else { return }
+        do { connectorConnections = try ConnectorStore().connections() } catch { self.error = error.localizedDescription }
+    }
+    func connectProfile() {
+        guard !demo, let selected, profileAssociationConfirmed else { return }
+        do {
+            guard let resources = Bundle.main.resourceURL, let executable = Bundle.main.executableURL else { throw ConnectorError.rejected("Open the packaged Mac app to install the local connector.") }
+            connectorLocation = try ConnectorInstallation.install(browser: sourceBrowser, executable: executable.deletingLastPathComponent().appendingPathComponent("browser-bridge-host"), resources: resources.appendingPathComponent("Connector"))
+            pairingCode = try ConnectorStore().beginPairing(browser: sourceBrowser, profile: selected.path)
+            notice = "Local host installed for \(sourceBrowser.name). Load the Connector folder in this exact browser profile, then paste the pairing code."
+            NSWorkspace.shared.activateFileViewerSelecting([connectorLocation!])
+            refreshConnections()
+        } catch { self.error = error.localizedDescription }
+    }
     func discover() {
         if demo {
             profiles = [.init(name: "Personal · demo", path: URL(fileURLWithPath: "/demo/source"))]; selectedID = profiles[0].id
@@ -61,8 +155,9 @@ enum Page: String, CaseIterable, Identifiable {
         } catch { targetProfiles = []; targetID = ""; self.error = "Could not discover destination profiles. Choose its folder manually, or confirm a new/separately backed-up profile." }
         destinationBackedUp = false
     }
-    func changeSource() { scanGeneration += 1; profiles = []; selectedID = ""; snapshot = nil; captureURL = nil; portableOnly = false; notice = nil; discover() }
+    func changeSource() { profileAssociationConfirmed = false; pairingCode = ""; scanGeneration += 1; profiles = []; selectedID = ""; snapshot = nil; captureURL = nil; portableOnly = false; notice = nil; discover() }
     func scan() {
+        profileAssociationConfirmed = false; pairingCode = ""
         guard !demo, !creating else { return }
         scanGeneration += 1; let generation = scanGeneration
         let source = selected?.path, browser = sourceBrowser, captureFile = captureURL, portable = portableOnly
@@ -148,6 +243,107 @@ enum Page: String, CaseIterable, Identifiable {
 struct ManagerView: View {
     @Bindable var store: MigrationStore
     private let accent = Color(red: 0.18, green: 0.38, blue: 0.26)
+    private var transfer: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Bring your browser with you").font(.largeTitle.weight(.semibold))
+            Text("After connecting both profiles, a verified route captures live data, closes the browsers normally, saves a checksummed backup, reopens the exact destination and checks both the imported result and your existing destination tabs and bookmarks.").foregroundStyle(.secondary)
+            GroupBox("Selected route") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Label("\(store.sourceBrowser.name) → \(store.targetBrowser.name)", systemImage: "arrow.right").font(.title2.weight(.semibold))
+                    Text("Source: \(store.connectedSource?.label ?? "Connect the selected profile")")
+                    Text("Destination: \(store.connectedDestination?.label ?? "Connect the selected profile")")
+                    if let a = store.connectedSource, let b = store.connectedDestination, AutomaticRoutes.allows(a, b) {
+                        Label("This exact browser-version route has lifecycle verification", systemImage: "checkmark.seal").foregroundStyle(.green)
+                    } else {
+                        Text("Automatic transfer is unavailable for this route. Connection and browser-family similarity do not establish lifecycle acceptance. Create a guided migration package below.").foregroundStyle(.secondary)
+                    }
+                    Toggle("Include history (requires permission in both profiles)", isOn: $store.transferHistory)
+                    Toggle("Preserve portable tab groups (requires permission in both profiles)", isOn: $store.transferGroups)
+                    Text("Tabs, pin states, nested bookmark folders and portable window/group approximations are included. Native spaces, credentials and active sessions have guided or archive-only limits.").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Backup folder").font(.headline)
+                            Text(store.backupDirectory?.path ?? "Choose once. Each transfer creates its own retained backup.").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        }
+                        Spacer()
+                        Button(store.backupDirectory == nil ? "Choose folder…" : "Change…", action: store.chooseBackupDirectory)
+                    }
+                    if store.connectedSource == nil || store.connectedDestination == nil {
+                        Button("Set up browser connections") { store.page = .connections }
+                    }
+                    Toggle("I understand that Transfer requests a normal quit of all windows in the selected browser apps, and may pause for unsaved-work prompts.", isOn: $store.gracefulQuitAcknowledged)
+                    Button("Transfer", action: store.startTransfer).buttonStyle(.borderedProminent).tint(accent).controlSize(.large).disabled(!store.automaticTransferReady)
+                }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            }.disabled(store.transferring)
+            if let receipt = store.transferReceipt {
+                GroupBox("Current transfer") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack { if store.transferring { ProgressView().controlSize(.small) }; Text(receipt.phase.rawValue).font(.headline) }
+                        if let error = receipt.error { Text(error).foregroundStyle(.secondary) }
+                        Text(receipt.packagePath).font(.caption).textSelection(.enabled)
+                        Text("The receipt records each phase. A paused or mismatched transfer is not reported as complete.").font(.caption).foregroundStyle(.secondary)
+                    }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            HStack { Text("Transfer receipts").font(.title2.weight(.semibold)); Spacer(); Button("Refresh", action: store.refreshTransfers) }
+            if store.transferReceipts.isEmpty { Text("No coordinated transfers yet. Guided exports remain available in Saved packages.").foregroundStyle(.secondary) }
+            ForEach(store.transferReceipts) { receipt in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("\(receipt.source.browser.name) → \(receipt.destination.browser.name) · \(receipt.phase.rawValue)").font(.headline)
+                    Text(receipt.updatedAt, style: .date).font(.caption).foregroundStyle(.secondary)
+                    if let error = receipt.error { Text(error).font(.callout) }
+                    Text("\(receipt.source.label) → \(receipt.destination.label)").font(.caption)
+                    Text(receipt.destination.profilePath).font(.caption).textSelection(.enabled)
+                    HStack {
+                        Button("Reveal receipt") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receipt.receiptPath)]) }
+                        if [.paused, .capturing, .capturingDestination, .closing, .backingUp, .reopening, .importing, .verifying, .checkingDestination, .rollingBack].contains(receipt.phase) {
+                            Button("Resume") { store.recoverTransfer(receipt) }.disabled(store.transferring)
+                        }
+                        if receipt.packageID != nil && [.complete, .paused, .rollbackPartial].contains(receipt.phase) {
+                            Button("Roll back…") { store.recoverTransfer(receipt, rollback: true) }.disabled(store.transferring)
+                        }
+                        if receipt.phase == .paused {
+                            Button("Cancel undelivered operation") { store.cancelUndelivered(receipt) }.disabled(store.transferring)
+                        }
+                    }
+                    if receipt.phase == .rollbackPartial { Text("Some items were retained. Read the receipt before making further changes.").font(.caption).foregroundStyle(.secondary) }
+                }.padding(.vertical, 8)
+            }
+        }.onAppear(perform: store.refreshTransfers)
+    }
+    private var connections: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Connect a browser profile").font(.largeTitle.weight(.semibold))
+            Text("Install once in each profile. The local connector receives only operations you start in this Mac app.").foregroundStyle(.secondary)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("1. Confirm the selected source profile").font(.headline)
+                    Text(store.selected?.path.path ?? "Choose a source profile above.").font(.system(.callout, design: .monospaced)).textSelection(.enabled)
+                    Toggle("I checked this folder against the profile path shown in this browser’s version/support page.", isOn: $store.profileAssociationConfirmed)
+                    Text("Extensions cannot report their filesystem profile path. This confirmation associates the chosen folder with the connector you install.").font(.caption).foregroundStyle(.secondary)
+                    Button("Install local host and create pairing code", action: store.connectProfile).disabled(store.demo || store.selected == nil || !store.profileAssociationConfirmed || store.sourceBrowser == .safari)
+                    if !store.pairingCode.isEmpty {
+                        Text("2. Load the Connector folder in \(store.sourceBrowser.name)").font(.headline)
+                        Text(store.sourceBrowser.family == .firefox ? "Open about:debugging → This Firefox → Load Temporary Add-on, then choose manifest.json. Temporary installation disappears when Firefox/Zen exits; reconnect it after restart." : "Open chrome://extensions, enable Developer mode, choose Load unpacked and select the revealed folder.")
+                        Text("3. Open the connector toolbar button and paste this code (expires in ten minutes)").font(.headline)
+                        HStack { Text(store.pairingCode).font(.system(.callout, design: .monospaced)).textSelection(.enabled); Button("Copy code") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(store.pairingCode, forType: .string) } }
+                    }
+                }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack { Text("Connected profiles").font(.title2.weight(.semibold)); Spacer(); Button("Refresh", action: store.refreshConnections) }
+            if store.connectorConnections.isEmpty { Text("No profiles connected yet. Safari uses the guided file transfer.").foregroundStyle(.secondary) }
+            ForEach(store.connectorConnections) { connection in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack { Text("\(connection.browser.name) · \(connection.label)").font(.headline); Spacer(); Text(connection.connected ? "Connected" : "Waiting for browser").foregroundStyle(connection.connected ? .green : .secondary) }
+                    Text(connection.profilePath).font(.caption).textSelection(.enabled)
+                    if let version = connection.browserVersion { Text("Observed browser version: \(version)").font(.caption).foregroundStyle(.secondary) }
+                    if let executable = connection.browserExecutable { Text(executable).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
+                    Text("Connection is separate from automatic transfer verification. Unverified browser pairs use the guided flow.").font(.caption).foregroundStyle(.secondary)
+                    Button("Disconnect") { do { try ConnectorStore().disconnect(connection.id); store.refreshConnections() } catch { store.error = error.localizedDescription } }
+                }.padding(.vertical, 8)
+            }
+        }.onAppear(perform: store.refreshConnections)
+    }
     var body: some View {
         NavigationSplitView {
             VStack(alignment: .leading, spacing: 24) {
@@ -162,11 +358,11 @@ struct ManagerView: View {
             }.padding(.horizontal, 16).navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
         } detail: {
             VStack(spacing: 0) {
-                routeControls.padding(20)
+                routeControls.padding(20).disabled(store.transferring)
                 Divider()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
-                        switch store.page { case .overview: overview; case .plan: plan; case .support: support; case .packages: packages }
+                        switch store.page { case .transfer: transfer; case .connections: connections; case .overview: overview; case .plan: plan; case .support: support; case .packages: packages }
                     }.padding(32).frame(maxWidth: 940, alignment: .leading).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Divider()
@@ -208,8 +404,8 @@ struct ManagerView: View {
                     }
                     Button("Choose destination folder…") { store.chooseProfile(destination: true) }
                 }
-            }.disabled(store.creating || store.demo)
-            if store.target == nil { Toggle("Destination is a new or separately backed-up profile", isOn: $store.destinationBackedUp).font(.callout).disabled(store.creating || store.demo) }
+            }.disabled(store.creating || store.transferring || store.demo)
+            if store.target == nil { Toggle("Destination is a new or separately backed-up profile", isOn: $store.destinationBackedUp).font(.callout).disabled(store.creating || store.transferring || store.demo) }
         }
     }
     private var support: some View {
@@ -242,7 +438,7 @@ struct ManagerView: View {
                 HStack {
                     if store.sourceBrowser.family != .safari { Button("Save capture helper…", action: store.saveCaptureHelper) }
                     Button("Attach capture / bookmarks HTML…", action: store.attachPortable)
-                }.disabled(store.creating || store.demo)
+                }.disabled(store.creating || store.transferring || store.demo)
                 Text(store.sourceBrowser.family == .safari ? "Safari: attach a bookmarks HTML export to use the portable-file fallback." : "For live tabs and pins, capture in the source browser, attach its JSON here, then quit browsers before backup.").font(.callout).foregroundStyle(.secondary)
                 if let capture = store.captureURL {
                     Text("Attached: \(capture.lastPathComponent)").font(.callout).textSelection(.enabled)
