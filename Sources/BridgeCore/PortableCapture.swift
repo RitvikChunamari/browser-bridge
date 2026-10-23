@@ -33,6 +33,7 @@ public struct PortableCapture: Codable, Sendable {
         }
         if result.bookmarks.isEmpty { result.bookmarks = snapshot.bookmarks }
         if result.history.isEmpty { result.history = snapshot.history }
+        if result.nativeOrganization == nil { result.nativeOrganization = snapshot.nativeOrganization }
         result.warnings += snapshot.warnings
         result.warnings.append("Live capture attached from \(capturedAt). Its browser label is selected by the exporter user; freshness and exact profile identity must be checked by the user.")
         return result

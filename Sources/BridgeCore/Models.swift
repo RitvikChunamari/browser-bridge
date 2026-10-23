@@ -41,6 +41,7 @@ public struct HistoryItem: Codable, Sendable {
     public let time: Double
 }
 public struct Snapshot: Codable, Sendable {
+    public var nativeOrganization: NativeOrganization? = nil
     public var spaces: [Space] = []
     public var folders: [Folder] = []
     public var tabs: [BrowserTab] = []

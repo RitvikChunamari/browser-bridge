@@ -30,10 +30,47 @@ public enum ZenReader {
         var snapshot: Snapshot?
         var errors: [String] = []
         for file in candidates {
-            do { var value = try readSession(Data(contentsOf: file)); value.sourceFile = file.lastPathComponent; snapshot = value; break }
+            do {
+                var value = try readSession(Data(contentsOf: file))
+                value.sourceFile = file.lastPathComponent
+                if snapshot == nil { snapshot = value }
+                if file.lastPathComponent == "zen-sessions.jsonlz4", value.tabs.isEmpty,
+                   !value.spaces.isEmpty || !value.folders.isEmpty { continue }
+                snapshot = value
+                break
+            }
             catch { errors.append("Could not read \(file.lastPathComponent): \(error.localizedDescription)") }
         }
         var result = snapshot ?? Snapshot()
+        // Zen keeps persistent organization separately from Firefox's more recent live session.
+        // Only supplement a generic session lacking organization, matching stable IDs rather than URLs.
+        let organizationFile = profile.appendingPathComponent("zen-sessions.jsonlz4")
+        if result.sourceFile != "zen-sessions.jsonlz4", result.spaces.isEmpty, result.folders.isEmpty,
+           fm.fileExists(atPath: organizationFile.path) {
+            do {
+                let organization = try readSession(Data(contentsOf: organizationFile))
+                if !organization.spaces.isEmpty || !organization.folders.isEmpty {
+                    result.spaces = organization.spaces
+                    result.folders = organization.folders
+                    let byID = Dictionary(organization.tabs.filter { !$0.id.hasPrefix("window-") }.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+                    result.tabs = result.tabs.map { live in
+                        guard let native = byID[live.id] else { return live }
+                        return BrowserTab(id: live.id, url: live.url, title: live.title,
+                            pinned: native.pinned, essential: native.essential,
+                            spaceID: native.spaceID, folderID: native.folderID, order: live.order,
+                            originalURL: native.originalURL ?? live.originalURL, container: native.container)
+                    }
+                    let seen = Set(result.tabs.map(\.id))
+                    for tab in organization.tabs where !tab.id.hasPrefix("window-") && !seen.contains(tab.id) && (tab.pinned || tab.essential) {
+                        result.tabs.append(BrowserTab(id: tab.id, url: tab.url, title: tab.title,
+                            pinned: tab.pinned, essential: tab.essential, spaceID: tab.spaceID,
+                            folderID: tab.folderID, order: result.tabs.count, originalURL: tab.originalURL, container: tab.container))
+                    }
+                    result.sourceFile += " + zen-sessions.jsonlz4 organization"
+                    result.warnings.append("Organization was supplemented from Zen's separate persistent session using stable tab IDs. Persistent pins absent from the live session are retained; review freshness before importing.")
+                }
+            } catch { errors.append("Could not supplement Zen organization: \(error.localizedDescription)") }
+        }
         result.warnings += errors
         if snapshot == nil { result.warnings.append("No readable tab session found. Bookmarks and history may still be available.") }
         let places = profile.appendingPathComponent("places.sqlite")
@@ -79,7 +116,7 @@ public enum ZenReader {
                 guard !entries.isEmpty else { continue }
                 let entry = entries[min(max(0, index), entries.count - 1)]
                 guard let url = entry["url"] as? String else { continue }
-                let id = tab["zenSyncId"] as? String ?? "window-\(windows.count)-\(result.tabs.count)-\(position)"
+                let id = tab["zenSyncId"] as? String ?? tab["zenPinnedId"] as? String ?? "window-\(windows.count)-\(result.tabs.count)-\(position)"
                 guard seenTabs.insert(id).inserted else { continue }
                 let initial = tab["_zenPinnedInitialState"] as? [String: Any]
                 result.tabs.append(BrowserTab(id: id, url: url, title: entry["title"] as? String ?? url,
@@ -88,7 +125,7 @@ public enum ZenReader {
                     order: result.tabs.count, originalURL: initial?["url"] as? String, container: tab["userContextId"] as? Int ?? 0))
             }
         }
-        if result.tabs.isEmpty && root["tabs"] == nil && root["windows"] == nil { throw BridgeError.message("Unrecognized Firefox/Zen session structure.") }
+        if result.tabs.isEmpty && root["tabs"] == nil && root["windows"] == nil && root["spaces"] == nil && root["folders"] == nil { throw BridgeError.message("Unrecognized Firefox/Zen session structure.") }
         return result
     }
 
