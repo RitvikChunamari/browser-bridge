@@ -58,17 +58,8 @@ cat > "$BRIDGE_STAGE/Contents/Info.plist" <<'PLIST'
 <key>NSAppleEventsUsageDescription</key><string>Optionally read exposed Arc or Safari tabs and Spaces for a local capture you review before migration.</string>
 </dict></plist>
 PLIST
-# Sign after lipo, from the nested host outward. Ad-hoc signing requires no paid enrollment.
-for BRIDGE_NESTED in browser-bridge-host bridge-credentials; do
-    /usr/bin/codesign --force --sign - "$BRIDGE_STAGE/Contents/MacOS/$BRIDGE_NESTED"
-done
-/usr/bin/codesign --force --sign - "$BRIDGE_STAGE"
-for BRIDGE_ARCH in arm64 x86_64; do
-    for BRIDGE_NESTED in browser-bridge-host bridge-credentials; do
-        /usr/bin/codesign --verify --strict --architecture "$BRIDGE_ARCH" "$BRIDGE_STAGE/Contents/MacOS/$BRIDGE_NESTED"
-    done
-    /usr/bin/codesign --verify --strict --architecture "$BRIDGE_ARCH" "$BRIDGE_STAGE"
-done
+# Hardened runtime, with Developer ID signing when explicitly configured.
+bash scripts/sign-macos.sh "$BRIDGE_STAGE"
 mkdir -p outputs
 rm -rf "outputs/Browser Bridge.app"
 mv "$BRIDGE_STAGE" "outputs/Browser Bridge.app"
