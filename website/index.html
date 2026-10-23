@@ -12,11 +12,11 @@
 <link rel="canonical" href="https://ritvikchunamari.github.io/browser-bridge/">
 <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
 <link rel="preload" href="assets/Fraunces.ttf" as="font" type="font/ttf" crossorigin>
-<link rel="stylesheet" href="style.css">
-<script src="app.js" defer>
+<link rel="stylesheet" href="style.css?v=0.3.1">
+<script src="app.js?v=0.3.1" defer>
 </script>
-<title>Browser Bridge — Bring your browser life along</title>
-</head>
+<title>Browser Migration for Mac — Browser Bridge</title>
+<meta property="og:image" content="https://ritvikchunamari.github.io/browser-bridge/assets/social-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="Browser Bridge: move your browsing setup on Mac"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Browser Migration for Mac — Browser Bridge"><meta name="twitter:description" content="Free, open-source browser migration for macOS. Local backups, a verified Chrome-to-Brave route and guided alternatives."><meta name="twitter:image" content="https://ritvikchunamari.github.io/browser-bridge/assets/social-card.png"><script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Browser Bridge", "applicationCategory": "UtilitiesApplication", "operatingSystem": "macOS 14 or later", "softwareVersion": "0.3.1-beta", "url": "https://ritvikchunamari.github.io/browser-bridge/", "downloadUrl": "https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.1-beta", "license": "https://opensource.org/license/mit", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}, "description": "Free open-source browser migration manager for Mac. Universal Apple silicon and Intel build; automatic route verified on exact Chrome and Brave versions on Apple silicon only."}</script></head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 <header class="header">
@@ -24,7 +24,7 @@
 <img src="assets/mark.svg" width="42" height="42" alt="">Browser Bridge</a>
 <nav aria-label="Main navigation">
 <a href="#support">Browser support</a>
-<a href="#how">How it works</a>
+<a href="guides/migrate-browser-mac.html">Guides</a>
 <a href="https://github.com/RitvikChunamari/browser-bridge">GitHub <span aria-hidden="true">↗</span>
 </a>
 </nav>
@@ -36,9 +36,9 @@
 </h1>
 <div class="hero-aside">
 <p>Bring the tabs, bookmarks and little corners of the internet you call home.</p>
-<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.0-beta">Download for Mac <span aria-hidden="true">↓</span>
+<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.1-beta">Download for Mac <span aria-hidden="true">↓</span>
 </a>
-<p class="release-note">v0.3.0 Beta · Apple silicon · macOS 14+<br>Free & open source. Local setup required.</p>
+<p class="release-note">v0.3.1 Beta · Apple silicon + Intel · macOS 14+<br>Free & open source. Local setup required.</p>
 </div>
 </div>
 <div class="demo" aria-labelledby="demo-title">
@@ -111,7 +111,7 @@
 </ol>
 <div class="next">
 <h3>Connect once. Then Transfer.</h3>
-<p>The beta’s verified automatic route is Chrome 156.0.8078.48 → Brave 156.1.98.60 on macOS. Other versions, directions and browser pairs remain guided. Local connector setup and browser permissions are required.</p>
+<p>The beta’s verified automatic route is Chrome 156.0.8078.48 → Brave 156.1.98.60 on Apple silicon. Intel uses guided transfer; Intel runtime is unverified. Other versions, directions and browser pairs remain guided. Local connector setup and browser permissions are required.</p>
 <a href="https://github.com/RitvikChunamari/browser-bridge/issues">Follow development <span aria-hidden="true">↗</span>
 </a>
 </div>
@@ -148,7 +148,7 @@
 </div>
 <div class="next">
 <h3>Verified: Chrome → Brave</h3>
-<p>Chrome 156.0.8078.48 → Brave 156.1.98.60. A disposable-profile end-to-end run verified 11 imported bookmarks, 2 tabs, 1 group and 3 history entries, with zero verification mismatches. The destination’s existing 12 bookmarks and 3 tabs remained. This evidence covers that direction and those versions only.</p>
+<p>Chrome 156.0.8078.48 → Brave 156.1.98.60. A disposable-profile end-to-end run verified 11 imported bookmarks, 2 tabs, 1 group and 3 history entries, with zero verification mismatches. The destination’s existing 12 bookmarks and 3 tabs remained. This evidence covers that direction and those versions on Apple silicon only. The universal app includes Intel, but Intel runtime is unverified and its transfers remain guided.</p>
 </div>
 <div class="limits">
 <h3>The details matter.</h3>
@@ -172,12 +172,12 @@
 <section class="closing section">
 <h2>Take your next<br>browser personally.</h2>
 <div>
-<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.0-beta">Explore the Mac beta <span aria-hidden="true">↓</span>
+<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.3.1-beta">Explore the Mac beta <span aria-hidden="true">↓</span>
 </a>
-<a class="text-link" href="https://github.com/RitvikChunamari/browser-bridge">Build it with us on GitHub <span aria-hidden="true">↗</span>
+<a class="text-link" href="https://github.com/RitvikChunamari/browser-bridge">Star Browser Bridge on GitHub <span aria-hidden="true">↗</span>
 </a>
 </div>
-<div class="platforms">
+<div class="guide-links"><h3>Make your move with a plan.</h3><a href="guides/migrate-browser-mac.html">Migrate browsers on Mac</a><a href="guides/zen-to-dia.html">Move from Zen to Dia</a><a href="guides/chrome-to-brave.html">Chrome to Brave: verified flow</a><a href="guides/bookmarks-html.html">Use a bookmarks HTML file</a></div><div class="platforms">
 <strong>Mac first.</strong>
 <p>Windows, iOS, Android & Linux <span>Coming soon</span>
 </p>
@@ -192,7 +192,7 @@
 <a href="https://github.com/RitvikChunamari/browser-bridge/blob/main/LICENSE">MIT licensed</a>
 </footer>
 <noscript>
-<p class="noscript">The browser simulation and support filter need JavaScript. Browser Bridge supports an automatic Chrome 156.0.8078.48 to Brave 156.1.98.60 route after local setup. Other versions and pairs remain guided across Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi. Safari uses bookmark HTML; other routes depend on browser APIs. Downloads and documentation above remain available.</p>
+<p class="noscript">The browser simulation and support filter need JavaScript. Browser Bridge supports an automatic Chrome 156.0.8078.48 to Brave 156.1.98.60 route on Apple silicon after local setup. Intel runtime is unverified and remains guided. Other versions and pairs remain guided across Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi. Safari uses bookmark HTML; other routes depend on browser APIs. Downloads and documentation above remain available.</p>
 </noscript>
 </body>
 </html>

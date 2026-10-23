@@ -30,7 +30,7 @@ function routeChanged() {
   const same=source.value===destination.value;
   const safari=source.value==='safari'||destination.value==='safari';
   const verified=source.value==='chrome'&&destination.value==='brave';
-  summary.textContent=same ? 'Choose two different browsers to explore a transfer route.' : verified ? 'Verified automatic route · Chrome 156.0.8078.48 → Brave 156.1.98.60 only. One-time local connector and backup-folder setup required; other versions remain guided.' : safari ? 'Guided route · Safari uses bookmark HTML. Live tabs, pins and native groups are not transferred by this route.' : 'Guided route · Bookmarks and folders; tabs, pins, groups and history depend on capture and target APIs. Native spaces may be approximated.';
+  summary.textContent=same ? 'Choose two different browsers to explore a transfer route.' : verified ? 'Verified automatic route · Chrome 156.0.8078.48 → Brave 156.1.98.60 on Apple silicon only. Intel is guided; Intel runtime is unverified. One-time local connector and backup-folder setup required; other versions remain guided.' : safari ? 'Guided route · Safari uses bookmark HTML. Live tabs, pins and native groups are not transferred by this route.' : 'Guided route · Bookmarks and folders; tabs, pins, groups and history depend on capture and target APIs. Native spaces may be approximated.';
   simulate.disabled=same;
   result.replaceChildren();
   const strong=document.createElement('strong'); strong.textContent='A fresh start.';
@@ -44,7 +44,7 @@ simulate.addEventListener('click',()=>{
   timer=setTimeout(()=>{
     document.querySelector('.demo').classList.remove('is-running');
     result.querySelector('strong').textContent='Your next chapter.';
-    result.querySelector('span').textContent=source.value==='chrome'&&destination.value==='brave'?'Simulation complete. In the Mac beta, this exact-version route supports Transfer after local setup. This website moved no data.':source.value==='safari'||destination.value==='safari'?'Simulation complete: a bookmark HTML handoff. Real transfer requires guided import.':'Simulation complete: a portable browsing setup. Real transfer requires the Mac app and guided helper.';
+    result.querySelector('span').textContent=source.value==='chrome'&&destination.value==='brave'?'Simulation complete. In the Mac beta, this exact-version Apple-silicon route supports Transfer after local setup. This website moved no data.':source.value==='safari'||destination.value==='safari'?'Simulation complete: a bookmark HTML handoff. Real transfer requires guided import.':'Simulation complete: a portable browsing setup. Real transfer requires the Mac app and guided helper.';
     simulate.disabled=false;
   },matchMedia('(prefers-reduced-motion: reduce)').matches?0:1100);
 });
@@ -57,7 +57,7 @@ function filterSupport(){
   const row=document.createElement('tr');
   const details=type==='safari'?'Bookmarks & history source; bookmark HTML destination. Live tabs and groups are archive-only.':type==='firefox'?'Profile capture + Firefox helper. Native Zen Essentials and spaces may be approximated.':'Profile capture + Chromium helper. Arc/Vivaldi native organization is archive-only unless exposed by APIs.';
   const routeLabel=id==='chrome'?'Automatic → Brave*':id==='brave'?'Automatic ← Chrome*':'Guided · Beta';
-  for(const text of [name,routeLabel,details+(id==='chrome'||id==='brave'?' *Only Chrome 156.0.8078.48 → Brave 156.1.98.60; all other routes guided.':'')]){const cell=document.createElement('td');cell.textContent=text;row.append(cell)}
+  for(const text of [name,routeLabel,details+(id==='chrome'||id==='brave'?' *Only Chrome 156.0.8078.48 → Brave 156.1.98.60 on Apple silicon; Intel and all other routes guided.':'')]){const cell=document.createElement('td');cell.textContent=text;row.append(cell)}
   rows.append(row);
  }
  document.querySelector('#support-count').textContent=`${shown.length} browser${shown.length===1?'':'s'}`;

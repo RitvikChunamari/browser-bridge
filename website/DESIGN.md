@@ -137,3 +137,6 @@ Don't:
 - Replace the ledger with generic marketing cards or add decorative shadows.
 - Imply that the website can read browser data or verify an automatic route.
 - Present planned platforms or connected transfer behavior as released capability.
+
+## Searchable guide surface
+The guides use Read mode within the established dark identity. Article content is static HTML with a constrained 850px outer measure, 17px body text and generous heading spacing. Canonical paths end in .html and appear in sitemap.xml. Guide navigation and related links remain ordinary anchors. Social preview is a locally rendered 1200×630 PNG with the original mark; no remote media or font dependency. v0.3.1 is universal macOS14+, with Apple-silicon exact-version automation and explicitly unverified/guided Intel runtime.
