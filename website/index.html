@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111810">
+<meta name="description" content="Move your browsing setup with Browser Bridge. A free, open-source Mac migration manager with local backups and honest browser support.">
+<meta property="og:title" content="Browser Bridge — A new browser. Your familiar world.">
+<meta property="og:description" content="An open-source Mac app for moving your browsing setup. Explore the alpha and see what transfers.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ritvikchunamari.github.io/browser-bridge/">
+<link rel="canonical" href="https://ritvikchunamari.github.io/browser-bridge/">
+<link rel="icon" href="assets/mark.svg" type="image/svg+xml">
+<link rel="preload" href="assets/Fraunces.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="stylesheet" href="style.css">
+<script src="app.js" defer>
+</script>
+<title>Browser Bridge — Bring your browser life along</title>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="header">
+<a class="brand" href="./" aria-label="Browser Bridge home">
+<img src="assets/mark.svg" width="42" height="42" alt="">Browser Bridge</a>
+<nav aria-label="Main navigation">
+<a href="#support">Browser support</a>
+<a href="#how">How it works</a>
+<a href="https://github.com/RitvikChunamari/browser-bridge">GitHub <span aria-hidden="true">↗</span>
+</a>
+</nav>
+</header>
+<main id="main">
+<section class="hero">
+<div class="hero-copy">
+<h1>A new browser.<br>Your <em>familiar world.</em>
+</h1>
+<div class="hero-aside">
+<p>Bring the tabs, bookmarks and little corners of the internet you call home.</p>
+<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.2.0-alpha">Download for Mac <span aria-hidden="true">↓</span>
+</a>
+<p class="release-note">v0.2.0 Alpha · Apple silicon · macOS 14+<br>Free & open source. Local setup required.</p>
+</div>
+</div>
+<div class="demo" aria-labelledby="demo-title">
+<div class="demo-heading">
+<h2 id="demo-title">Imagine your next move.</h2>
+<p>
+<span class="status-dot">
+</span>Interactive simulation · no browser access</p>
+</div>
+<div class="route">
+<div class="browser-end">
+<label for="source">From</label>
+<select id="source" name="source">
+</select>
+<div class="sample-tree">
+<span class="tree-folder">Weekend projects</span>
+<span>Small web, big ideas</span>
+<span>Places to return to</span>
+<span class="tree-pin">A tab worth keeping</span>
+</div>
+</div>
+<div class="bridge-track" aria-hidden="true">
+<svg viewBox="0 0 380 90" fill="none">
+<path d="M0 45H100C145 45 135 10 190 10S235 45 280 45H380"/>
+<path d="M0 45H100C145 45 135 80 190 80S235 45 280 45H380"/>
+<path class="travel" d="M0 45H100C145 45 135 10 190 10S235 45 280 45H380"/>
+</svg>
+<span>Your browser life, in motion</span>
+</div>
+<div class="browser-end destination">
+<label for="destination">To</label>
+<select id="destination" name="destination">
+</select>
+<div id="demo-result" class="result" aria-live="polite">
+<strong>A fresh start.</strong>
+<span>Choose a route to explore what comes along.</span>
+</div>
+</div>
+</div>
+<div class="demo-bottom">
+<p id="route-summary">Loading browser support…</p>
+<button id="simulate" class="button" type="button">Simulate transfer <span aria-hidden="true">→</span>
+</button>
+</div>
+<p class="demo-disclaimer">Illustrative data only. This demo does not read, change or transfer your browser data.</p>
+</div>
+<div class="hero-foot">
+<p>Keep your momentum.<br>Keep control of your data.</p>
+<a href="#support">See what actually transfers <span aria-hidden="true">↓</span>
+</a>
+</div>
+</section>
+<section id="how" class="how section">
+<h2>Less starting over.<br>More picking up.</h2>
+<div class="how-body">
+<p class="large-copy">Switching browsers shouldn’t mean rebuilding your world from memory.</p>
+<ol class="steps">
+<li>
+<h3>Choose your route.</h3>
+<p>Select the source and destination. Preview the categories each browser can share before you begin.</p>
+</li>
+<li>
+<h3>Make room for a safe move.</h3>
+<p>The alpha creates a local package with checksummed profile backups and portable exports. Keep browsers closed during backup.</p>
+</li>
+<li>
+<h3>Bring it across.</h3>
+<p>Use the target-specific helper or guided file import. Review the result and keep the original backup.</p>
+</li>
+</ol>
+<div class="next">
+<h3>Next: connect once. Then Transfer.</h3>
+<p>We’re building connected profiles, coordinated capture, graceful quit/reopen and verified receipts. Automatic routes will only open after real end-to-end checks pass.</p>
+<a href="https://github.com/RitvikChunamari/browser-bridge/issues">Follow development <span aria-hidden="true">↗</span>
+</a>
+</div>
+</div>
+</section>
+<section id="support" class="support section">
+<div class="section-heading">
+<h2>Different browsers.<br>Honest boundaries.</h2>
+<p>Eleven browsers. One clear support ledger.<br>The current alpha uses guided transfer. No automatic pair is advertised as verified.</p>
+</div>
+<div class="support-controls">
+<label for="family">Show browsers</label>
+<select id="family" name="family">
+<option value="all">All browser families</option>
+<option value="chromium">Chromium family</option>
+<option value="firefox">Firefox family</option>
+<option value="safari">Safari</option>
+</select>
+<span id="support-count" aria-live="polite">
+</span>
+</div>
+<div class="table-scroll" tabindex="0" role="region" aria-label="Browser support table, scroll horizontally if needed">
+<table>
+<thead>
+<tr>
+<th scope="col">Browser</th>
+<th scope="col">Current route</th>
+<th scope="col">Capture & import boundary</th>
+</tr>
+</thead>
+<tbody id="support-rows">
+</tbody>
+</table>
+</div>
+<div class="limits">
+<h3>The details matter.</h3>
+<p>Bookmarks and folders are portable. Tabs, pins, groups and history depend on exposed browser APIs and the selected route. Native Spaces, Essentials and Favorites may become folders or stay in the archive; exact parity is not promised.</p>
+<p>Passwords, passkeys, active cookie sessions and incompatible extension data need the browser’s own tools. Nothing on this website can access them.</p>
+</div>
+</section>
+<section class="privacy section">
+<div>
+<h2>Your browsing life<br>stays <em>yours.</em>
+</h2>
+<a class="text-link" href="https://github.com/RitvikChunamari/browser-bridge/blob/main/SECURITY.md">Read the security notes <span aria-hidden="true">↗</span>
+</a>
+</div>
+<div class="privacy-copy">
+<p>No migration account.<br>No data upload.<br>No hidden subscription.</p>
+<p class="muted">Transfers and backups stay on your Mac. This site has no analytics, tracking scripts, remote fonts or backend. GitHub hosts the site and downloads under its own policies.</p>
+<p class="muted">The alpha is ad-hoc signed, not Apple-notarized. Local browser helper installation is explicit. Read the release instructions before opening it.</p>
+</div>
+</section>
+<section class="closing section">
+<h2>Take your next<br>browser personally.</h2>
+<div>
+<a class="button primary" href="https://github.com/RitvikChunamari/browser-bridge/releases/tag/v0.2.0-alpha">Explore the Mac alpha <span aria-hidden="true">↓</span>
+</a>
+<a class="text-link" href="https://github.com/RitvikChunamari/browser-bridge">Build it with us on GitHub <span aria-hidden="true">↗</span>
+</a>
+</div>
+<div class="platforms">
+<strong>Mac first.</strong>
+<p>Windows, iOS, Android & Linux <span>Coming soon</span>
+</p>
+<small>Planned platforms. No dates or feature-parity promises yet.</small>
+</div>
+</section>
+</main>
+<footer>
+<a class="brand" href="./">
+<img src="assets/mark.svg" width="32" height="32" alt="">Browser Bridge</a>
+<p>Built for moving forward.</p>
+<a href="https://github.com/RitvikChunamari/browser-bridge/blob/main/LICENSE">MIT licensed</a>
+</footer>
+<noscript>
+<p class="noscript">The browser simulation and support filter need JavaScript. Browser Bridge supports guided routes for Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi. Safari uses bookmark HTML; other routes depend on browser APIs. Downloads and documentation above remain available.</p>
+</noscript>
+</body>
+</html>
