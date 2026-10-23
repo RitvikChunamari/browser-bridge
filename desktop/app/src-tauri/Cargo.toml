@@ -1,0 +1,16 @@
+[package]
+name = "browser-bridge-desktop"
+version = "0.4.0-beta.1"
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde_json = "1"
+bridge-engine = { path = "../../crates/bridge-engine" }
+bridge-sensitive = { path = "../../crates/bridge-sensitive" }
