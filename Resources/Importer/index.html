@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Browser Bridge · Local import</title><link rel="stylesheet" href="style.css"></head>
+<body><a class="skip" href="#import-form">Skip to import options</a><main>
+<header><span class="mark" aria-hidden="true"><img class="brand-logo" src="logo.svg" width="48" height="48" alt=""></span><p>Browser Bridge</p><h1>Your browsing life,<br>ready to move.</h1><p class="intro">Review this local package, then import into the <span data-target>destination browser</span> profile you’re using now. Existing data stays in place.</p></header>
+<div id="loading" role="status">Reading your migration package…</div>
+<section id="content" hidden>
+<dl id="inventory"></dl>
+<section class="notice" aria-labelledby="limits"><h2 id="limits">What changes in <span data-target>your destination</span></h2><p>Essentials become pinned tabs. Spaces and nested folders become bookmark trees; live groups use folder paths. Native Favorites and spaces are not created. Passwords need CSV import; cookies, extensions and settings remain in your backup.</p><p>Pinned tabs cannot also belong to browser tab groups. Their folder locations are preserved in bookmarks. The browser controls live tab names and group persistence.</p></section>
+<form id="import-form">
+<h2>Choose what to import</h2>
+<label class="check"><input id="bookmarks" name="bookmarks" type="checkbox" checked><span>Bookmarks and the exported workspace tree<small>Includes exported tabs, Essentials, pins and nested folders where available.</small></span></label>
+<label class="check"><input id="history" name="history" type="checkbox"><span>History URLs<small>Import-time timestamps, only where this profile has no visits. Original dates remain in the archive.</small></span></label>
+<label class="check"><input id="tabs" name="tabs" type="checkbox"><span>Open tabs and recreate pins / groups<small>Opens up to 50 tabs per run. Repeat to continue; tabs already imported from this package are skipped.</small></span></label>
+<label for="space">Workspace to open</label><select id="space" name="space"><option value="*">All workspaces</option></select>
+<p class="muted">Essentials are included with every workspace selection, once per package. A workspace opens in this profile; it does not create a native space.</p>
+<label class="check consent"><input id="consent" name="consent" type="checkbox" required><span>I’ve reviewed the mappings and backed up this <span data-target>destination</span> profile.</span></label>
+<button id="import" type="submit">Import selected data</button>
+</form>
+<p id="status" role="status" aria-live="polite">Ready. Import has not run.</p>
+<div class="actions"><button id="journal" type="button">Save import journal</button><button id="rollback" type="button">Roll back this package…</button></div>
+<p class="muted">Rollback removes the bookmark trees created by this helper, including edits within those trees. It closes unchanged imported tabs only in the same browser session. History URLs remain for review because individual visits cannot be safely undone. Retained items are reported in the journal. Keep this page open during import.</p>
+</section>
+<footer>Local files. No accounts, uploads, or paid services. Remove this extension when you’re finished to revoke its browser permissions.</footer>
+</main><script type="module" src="ui.mjs"></script></body></html>

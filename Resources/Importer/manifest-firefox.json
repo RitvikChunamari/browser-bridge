@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Bridge \u2014 local importer",
+  "version": "1.0.0",
+  "description": "Import a local Browser Bridge package with a journal and additive rollback. No network access.",
+  "permissions": [
+    "bookmarks",
+    "history",
+    "tabs",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "action": {
+    "default_title": "Open Browser Bridge importer"
+  },
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'self'"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "importer@browser-bridge.local",
+      "strict_min_version": "128.0"
+    }
+  },
+  "optional_permissions": [
+    "tabGroups"
+  ]
+}
