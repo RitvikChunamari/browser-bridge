@@ -1,0 +1,1 @@
+{"identifier":"main","description":"Local Browser Bridge window only. No arbitrary filesystem, shell or network commands.","windows":["main"],"permissions":["core:default"]}
