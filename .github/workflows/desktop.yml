@@ -1,0 +1,125 @@
+name: Desktop preview packages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'Resources/Connector/**', 'Tests/Importer/**', '.github/workflows/desktop.yml']
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  packages:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,rpm,appimage
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb,rpm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/desktop/target
+      BRIDGE_TARGET: ${{ matrix.target }}
+      NO_STRIP: 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: desktop/app/package-lock.json
+      - name: Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
+      - name: Rust toolchain
+        shell: bash
+        run: rustup toolchain install stable --profile minimal --component rustfmt --target "$BRIDGE_TARGET"
+      - name: Helper contract tests
+        shell: bash
+        run: node --test Tests/Importer/*.test.mjs Tests/Sessions/*.test.mjs
+      - name: Portable journey and sensitive boundaries
+        shell: bash
+        run: cargo test --locked --manifest-path desktop/Cargo.toml --target "$BRIDGE_TARGET"
+      - name: Build native host
+        shell: bash
+        run: cargo build --locked --release --manifest-path desktop/Cargo.toml --package bridge-host --target "$BRIDGE_TARGET"
+      - name: Install local frontend tooling
+        working-directory: desktop/app
+        run: npm ci
+      - name: Prepare bundled connector and host
+        run: node desktop/app/scripts/prepare-resources.mjs
+      - name: Package desktop preview
+        working-directory: desktop/app
+        run: npm run build -- --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+      - name: Inventory package hashes and readiness
+        if: success()
+        run: node desktop/scripts/package-report.mjs desktop/target/${{ matrix.target }}/release/bundle ${{ matrix.runner }} ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: browser-bridge-${{ matrix.target }}
+          path: |
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.exe
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.deb
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.rpm
+            desktop/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            desktop/target/${{ matrix.target }}/release/bundle/package-report.json
+          if-no-files-found: error
+          retention-days: 14
+  linux-install-check:
+    needs: packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:13
+            family: deb
+          - image: fedora:44
+            family: rpm
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: browser-bridge-x86_64-unknown-linux-gnu
+          path: artifact
+      - name: Install Debian package and resolve native libraries
+        if: matrix.family == 'deb'
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y ./artifact/deb/*.deb
+          test -x /usr/bin/browser-bridge-desktop
+          ldd /usr/bin/browser-bridge-desktop > native-libraries.txt
+          cat native-libraries.txt
+          if grep -q 'not found' native-libraries.txt; then exit 1; fi
+      - name: Install Fedora package and resolve native libraries
+        if: matrix.family == 'rpm'
+        shell: bash
+        run: |
+          dnf install -y ./artifact/rpm/*.rpm
+          test -x /usr/bin/browser-bridge-desktop
+          ldd /usr/bin/browser-bridge-desktop > native-libraries.txt
+          cat native-libraries.txt
+          if grep -q 'not found' native-libraries.txt; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-install-${{ matrix.family }}
+          path: native-libraries.txt
+          if-no-files-found: error
+          retention-days: 14
