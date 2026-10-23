@@ -11,7 +11,7 @@ This is a GitHub Pages project at `/browser-bridge/`. A `robots.txt` inside that
 Property: `https://ritvikchunamari.github.io/browser-bridge/`.
 Sitemap: `https://ritvikchunamari.github.io/browser-bridge/sitemap.xml`.
 
-Ownership was verified with Google’s public HTML file and the five-page sitemap was submitted on 23 October 2026. The initial sitemap report said “Couldn’t fetch”; a separate Google live URL test then confirmed “URL is available to Google.” The sitemap and all five canonical pages return HTTP 200. Sitemap processing and actual search indexing remain separate outcomes; neither is claimed complete here. Search Console measures indexing/search queries; this site does not embed analytics or transmit browser migration data to Google. Keep Google verification tokens at their expected public path only; never commit account credentials.
+Ownership was verified with Google’s public HTML file and the five-page sitemap was submitted on 23 October 2026. The initial sitemap report said “Couldn’t fetch”; a separate Google live URL test then confirmed “URL is available to Google.” The sitemap and all five canonical pages return HTTP 200. The homepage indexing request was accepted into Google’s priority crawl queue. Sitemap processing and actual search indexing remain separate outcomes; neither is claimed complete here. Search Console measures indexing/search queries; this site does not embed analytics or transmit browser migration data to Google. Keep Google verification tokens at their expected public path only; never commit account credentials.
 
 ## Community discovery
 
