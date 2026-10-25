@@ -43,3 +43,18 @@ A further public recovery regression was observed red when cancelling an undeliv
 ## Additive destination baseline
 
 A new complete-seam regression was observed red: the destination’s original HTTP(S) tab disappeared after reopening, yet the earlier pipeline applied and reported success. Transfer now captures a durable destination baseline before quit, requests Chromium’s previous-session restore, and independently checks existing tab/pin/group-name and bookmark-path multisets before apply and after import. Missing original items pause before further writes. The regression passes through missing-session pause, restored-session Resume, and one additive apply without recapturing the source. Separate persisted capture/check phases retain the correct pending command across interruptions. The local suite passes 23 Swift tests and 14 helper tests; actual destination-baseline retention remains a release acceptance gate until the real-browser integration run records it.
+
+## v0.4.0 — 1-Click Direct Profile Migration, Multi-Space Zen → Dia, Full History Engine & Native macOS System Settings UI
+
+In v0.4.0, the verification suite expands to **61 Swift tests across 8 suites** (`swift test`) and **21 Node.js tests** (`node --test Tests/Importer/*.test.mjs Tests/Sessions/*.test.mjs Tests/Website/metadata.test.mjs`):
+
+1. **1-Click Direct Profile Migrator (`OneClickMigratorTests`)**:
+   - Verifies direct Chromium (`Bookmarks` JSON) and Firefox/Zen (`places.sqlite`) injection, nested folder hierarchy preservation, `⭐ Essentials` propagation across every Dia space (`testOneClickDiaPreservesEssentialsInEverySpace`), multi-space mapping (`testOneClickMigratesMultiSpaceDirectToDiaAndRollback`), dynamic `Local State` (`last_used` / `Profile 9`) resolution (`testChromiumUserDataRootProfileResolution`), WAL/SHM journal backup and cleanup, and atomic 1-click rollback.
+2. **Full Browsing History Migration (`HistoryMigrationTests`)**:
+   - Verifies zero-lock safe reading (`PlacesReader.withSafeReadCopy` and `immutable=1` URI mode) on active locked SQLite databases (`testZeroLockReadingOnLiveActiveBrowser`).
+   - Verifies complete 22-table Chromium v70 `History` schema initialization (`testChromiumHistoryCompleteSchemaInitialization`), lock tolerance (`sqlite3_busy_timeout(db, 5000)`), and Windows FileTime microsecond conversion (`testChromiumHistoryDirectWriteAndRead`, `testChromiumHistoryLockTolerance`).
+   - Verifies Firefox/Zen `moz_places` and `moz_historyvisits` writing with reversed host indexing (`rev_host`), frecency scoring, and 12-char GUID generation (`testFirefoxRevHostAndFrecencyCalculation`, `testFirefoxHistoryDirectWriteAndRead`).
+   - Verifies `SQLITE_TRANSIENT` string memory safety with Unicode and special characters (`testStringMemorySafetyAndSpecialCharacters`), history-only migration isolation (`testHistoryOnlyMigrationPreservesExistingBookmarksAndSessions`), CLI `--dry-run` / `--no-history` flags (`testOneClickCLIDryRun`, `testOneClickCLIHistoryFlags`), and full rollback of newly created history files (`testRollbackDeletesNewlyCreatedHistoryFiles`).
+3. **Native macOS HIG & Website Verification**:
+   - Verified zero `slop` errors via `impeccable detect --json desktop/app/ui/style.css website/style.css`.
+   - Visually verified the compileduniversal/release `Browser Bridge.app` macOS System Settings (`FormStyle.grouped`) interface on macOS.

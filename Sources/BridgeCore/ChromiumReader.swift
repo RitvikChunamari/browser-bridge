@@ -18,12 +18,63 @@ enum ChromiumReader {
             }
             for key in roots.keys.sorted() { if let node = roots[key] as? [String: Any] { visit(node, parent: 0) } }
         } catch { result.warnings.append("Bookmarks could not be read: \(error.localizedDescription). Original files remain in the backup.") }
-        do {
-            try PlacesReader.rows(profile.appendingPathComponent("History"), sql: "SELECT url,title,last_visit_time FROM urls WHERE last_visit_time > 0 ORDER BY last_visit_time DESC") { q in
-                guard let url = PlacesReader.string(q, 0) else { return }
-                result.history.append(.init(url: url, title: PlacesReader.string(q, 1) ?? url, time: sqlite3_column_double(q, 2) / 1000 - 11644473600000))
+        var historyURL = profile.appendingPathComponent("History")
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: historyURL.path) {
+            let defaultHist = profile.appendingPathComponent("Default/History")
+            if fm.fileExists(atPath: defaultHist.path) {
+                historyURL = defaultHist
+            } else {
+                let ls = profile.appendingPathComponent("Local State")
+                var candidate: URL?
+                if let lsData = try? Data(contentsOf: ls),
+                   let lsObj = try? JSONSerialization.jsonObject(with: lsData) as? [String: Any],
+                   let pDict = lsObj["profile"] as? [String: Any],
+                   let lastUsed = pDict["last_used"] as? String {
+                    let lastUsedHist = profile.appendingPathComponent("\(lastUsed)/History")
+                    if fm.fileExists(atPath: lastUsedHist.path) {
+                        candidate = lastUsedHist
+                    }
+                }
+                if candidate == nil, let children = try? fm.contentsOfDirectory(at: profile, includingPropertiesForKeys: nil) {
+                    for child in children where child.lastPathComponent.hasPrefix("Profile") || child.lastPathComponent == "Default" {
+                        let childHist = child.appendingPathComponent("History")
+                        if fm.fileExists(atPath: childHist.path) {
+                            candidate = childHist
+                            break
+                        }
+                    }
+                }
+                if let candidate {
+                    historyURL = candidate
+                }
             }
-        } catch { result.warnings.append("History could not be read: \(error.localizedDescription). Close the source browser and retry; original files remain in the backup.") }
+        }
+        if fm.fileExists(atPath: historyURL.path) {
+            do {
+                try PlacesReader.withSafeReadCopy(historyURL) { safeURL in
+                    do {
+                        try PlacesReader.rows(safeURL, sql: "SELECT url,title,last_visit_time,visit_count,typed_count FROM urls WHERE last_visit_time > 0 ORDER BY last_visit_time DESC") { q in
+                            guard let rawURL = PlacesReader.string(q, 0) else { return }
+                            let u = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !u.isEmpty, !u.hasPrefix("chrome:"), !u.hasPrefix("chrome-extension:"), !u.hasPrefix("dia:"), !u.hasPrefix("brave:"), !u.hasPrefix("edge:"), !u.hasPrefix("about:"), !u.hasPrefix("data:") else { return }
+                            let t = (PlacesReader.string(q, 1) ?? u).trimmingCharacters(in: .whitespacesAndNewlines)
+                            let vCount = Int(sqlite3_column_int(q, 3))
+                            let tCount = Int(sqlite3_column_int(q, 4))
+                            result.history.append(.init(url: u, title: t.isEmpty ? u : t, time: sqlite3_column_double(q, 2) / 1000 - 11644473600000, visitCount: max(1, vCount), typedCount: max(0, tCount)))
+                        }
+                    } catch {
+                        try PlacesReader.rows(safeURL, sql: "SELECT url,title,last_visit_time FROM urls WHERE last_visit_time > 0 ORDER BY last_visit_time DESC") { q in
+                            guard let rawURL = PlacesReader.string(q, 0) else { return }
+                            let u = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !u.isEmpty, !u.hasPrefix("chrome:"), !u.hasPrefix("chrome-extension:"), !u.hasPrefix("dia:"), !u.hasPrefix("brave:"), !u.hasPrefix("edge:"), !u.hasPrefix("about:"), !u.hasPrefix("data:") else { return }
+                            let t = (PlacesReader.string(q, 1) ?? u).trimmingCharacters(in: .whitespacesAndNewlines)
+                            result.history.append(.init(url: u, title: t.isEmpty ? u : t, time: sqlite3_column_double(q, 2) / 1000 - 11644473600000))
+                        }
+                    }
+                }
+            } catch { result.warnings.append("History could not be read: \(error.localizedDescription). Close the source browser and retry; original files remain in the backup.") }
+        }
         func count(_ relative: String, table: String) -> Int {
             let file = profile.appendingPathComponent(relative)
             guard FileManager.default.fileExists(atPath: file.path) else { return 0 }

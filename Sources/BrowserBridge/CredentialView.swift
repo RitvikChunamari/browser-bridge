@@ -163,78 +163,113 @@ struct CredentialView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Label("Passwords", systemImage: "key.horizontal").font(.title2.weight(.semibold))
+                Label("Passwords & Vaults", systemImage: "key.horizontal.fill")
+                    .font(.title2.weight(.semibold))
                 Spacer()
                 if model.busy { ProgressView().controlSize(.small).accessibilityLabel("Working on credentials") }
                 Button("Done") { Task { do { try await model.cleanupBeforeClosing(); dismiss() } catch { model.failure = error.localizedDescription } } }
                     .keyboardShortcut(.cancelAction).disabled(model.busy || model.terminating)
             }
             Text("Protect a browser export locally, then use the destination browser’s own importer. Complete its authentication prompts. Passkeys and signed-in sessions require separate provider/browser support.")
-                .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    GroupBox("Protect the source export") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Export passwords from your source browser, then choose its CSV. The original export stays untouched.")
-                            HStack { Button("Choose password CSV…") { model.chooseCSV() }; Text(model.sourceCSV?.lastPathComponent ?? "No file selected").foregroundStyle(.secondary).lineLimit(2) }
-                            SecureField("Vault passphrase (12+ bytes; keep it safe)", text: $model.passphrase).textFieldStyle(.roundedBorder)
-                            Text("Your passphrase is not saved. A forgotten passphrase cannot be recovered.").font(.caption).foregroundStyle(.secondary)
-                            Toggle("I allow this CSV to be read and stored in an encrypted local vault.", isOn: $model.protectConsent)
-                            Button("Protect export") { model.protect() }.buttonStyle(.borderedProminent)
-                                .disabled(model.sourceCSV == nil || model.passphrase.utf8.count < 12 || !model.protectConsent)
-                        }.padding(10)
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Protect the source export", systemImage: "lock.shield")
+                            .font(.headline)
+                        Text("Export passwords from your source browser, then choose its CSV. The original export stays untouched.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 12) {
+                            Button("Choose Password CSV…") { model.chooseCSV() }
+                            Text(model.sourceCSV?.lastPathComponent ?? "No file selected")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        SecureField("Vault passphrase (12+ bytes; keep it safe)", text: $model.passphrase)
+                            .textFieldStyle(.roundedBorder)
+                        Text("Your passphrase is not saved. A forgotten passphrase cannot be recovered.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle("I allow this CSV to be read and stored in an encrypted local vault.", isOn: $model.protectConsent)
+                        Button("Protect Export") { model.protect() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.sourceCSV == nil || model.passphrase.utf8.count < 12 || !model.protectConsent)
                     }
-                    GroupBox("Import through your destination browser") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if model.vaults.isEmpty {
-                                Text("No saved vaults yet. Protect a source CSV above to begin.").foregroundStyle(.secondary)
-                            } else {
-                                Picker("Saved vault", selection: $model.selectedVault) {
-                                    ForEach(model.vaults) { vault in
-                                        Text("\(vault.vaultId.prefix(8)) · \(vault.count) passwords · \(Date(timeIntervalSince1970: vault.createdAt).formatted(date: .abbreviated, time: .omitted))").tag(vault.id)
-                                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .nativeGroupSurface()
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Import through your destination browser", systemImage: "tray.and.arrow.down")
+                            .font(.headline)
+                        if model.vaults.isEmpty {
+                            Text("No saved vaults yet. Protect a source CSV above to begin.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Picker("Saved vault", selection: $model.selectedVault) {
+                                ForEach(model.vaults) { vault in
+                                    Text("\(vault.vaultId.prefix(8)) · \(vault.count) passwords · \(Date(timeIntervalSince1970: vault.createdAt).formatted(date: .abbreviated, time: .omitted))").tag(vault.id)
                                 }
-                                SecureField("Vault passphrase to unlock", text: $model.passphrase).textFieldStyle(.roundedBorder)
-                                Toggle("I allow a temporary plaintext CSV for this browser-managed import.", isOn: $model.stageConsent)
-                                Button("Prepare temporary import file") { model.stage() }
-                                    .disabled(model.passphrase.utf8.count < 12 || !model.stageConsent)
                             }
-                            if let path = model.temporaryPath, let stage = model.currentStage {
-                                Divider()
-                                Text("Use your destination browser’s password importer to choose this file:").font(.headline)
-                                Text(path).font(.caption).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
-                                HStack {
-                                    Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
-                                    Button("Browser reported import complete") { model.confirm(stage) }
-                                    Button("Remove temporary CSV") { model.cleanup(stage) }
-                                }
-                                Text("Completion is recorded as user-confirmed, not independently verified.").font(.caption).foregroundStyle(.secondary)
+                            SecureField("Vault passphrase to unlock", text: $model.passphrase)
+                                .textFieldStyle(.roundedBorder)
+                            Toggle("I allow a temporary plaintext CSV for this browser-managed import.", isOn: $model.stageConsent)
+                            Button("Prepare Temporary Import File") { model.stage() }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(model.passphrase.utf8.count < 12 || !model.stageConsent)
+                        }
+                        if let path = model.temporaryPath, let stage = model.currentStage {
+                            Divider()
+                            Text("Use your destination browser’s password importer to choose this file:").font(.headline)
+                            Text(path).font(.caption).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                            HStack(spacing: 10) {
+                                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
+                                Button("Browser Reported Import Complete") { model.confirm(stage) }
+                                    .buttonStyle(.borderedProminent)
+                                Button("Remove Temporary CSV") { model.cleanup(stage) }
                             }
-                        }.padding(10)
-                    }
-                    if !model.stages.isEmpty {
-                        GroupBox("Temporary files") {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text("Eligible for cleanup after 15 minutes. Cleanup runs every 30 seconds while the app is running, when you close it normally, and on the next launch/action. A crash or powered-off Mac can leave plaintext until then. Deletion is not guaranteed secure erasure on SSDs or backups.")
-                                    .font(.caption).foregroundStyle(.secondary)
-                                ForEach(model.stages) { stage in
-                                    HStack {
-                                        Text("Import \(stage.stageId.prefix(8)) · cleanup after \(Date(timeIntervalSince1970: stage.expiresAt).formatted(date: .omitted, time: .shortened))").font(.callout)
-                                        Spacer()
-                                        Button("Remove CSV") { model.cleanup(stage.id) }
-                                    }
-                                }
-                            }.padding(10)
+                            Text("Completion is recorded as user-confirmed, not independently verified.").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    if let message = model.message { Label(message, systemImage: "info.circle").font(.callout).fixedSize(horizontal: false, vertical: true) }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .nativeGroupSurface()
+
+                    if !model.stages.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("Temporary files", systemImage: "clock.badge.exclamationmark")
+                                .font(.headline)
+                            Text("Eligible for cleanup after 15 minutes. Cleanup runs every 30 seconds while the app is running, when you close it normally, and on the next launch/action. A crash or powered-off Mac can leave plaintext until then. Deletion is not guaranteed secure erasure on SSDs or backups.")
+                                .font(.caption).foregroundStyle(.secondary)
+                            ForEach(model.stages) { stage in
+                                HStack {
+                                    Text("Import \(stage.stageId.prefix(8)) · cleanup after \(Date(timeIntervalSince1970: stage.expiresAt).formatted(date: .omitted, time: .shortened))").font(.callout)
+                                    Spacer()
+                                    Button("Remove CSV") { model.cleanup(stage.id) }
+                                        .controlSize(.small)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .nativeGroupSurface()
+                    }
+                    if let message = model.message { Label(message, systemImage: "info.circle").foregroundStyle(.secondary).font(.callout).fixedSize(horizontal: false, vertical: true) }
                     if let failure = model.failure { Label(failure, systemImage: "exclamationmark.triangle").foregroundStyle(.red).font(.callout).fixedSize(horizontal: false, vertical: true).accessibilityLabel("Credential step error: \(failure)") }
                 }.disabled(model.busy || model.terminating)
             }
-        }.padding(24).frame(width: 780, height: 720)
-            .interactiveDismissDisabled()
-            .task { model.reload() }
-            .onDisappear { model.passphrase = ""; model.protectConsent = false; model.stageConsent = false }
+        }
+        .padding(24)
+        .frame(width: 720, height: 680)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .interactiveDismissDisabled()
+        .task { model.reload() }
+        .onDisappear { model.passphrase = ""; model.protectConsent = false; model.stageConsent = false }
     }
 }
 

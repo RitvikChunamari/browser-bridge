@@ -12,16 +12,33 @@ public enum BrowserReader {
                 if fm.fileExists(atPath: root.appendingPathComponent("Bookmarks").path) || fm.fileExists(atPath: root.appendingPathComponent("Preferences").path) {
                     profiles.append(.init(name: browser.name, path: root))
                 }
-                for child in try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey]) where child.lastPathComponent == "Default" || child.lastPathComponent.hasPrefix("Profile ") {
+                var lastUsed: String?
+                if let lsData = try? Data(contentsOf: root.appendingPathComponent("Local State")),
+                   let lsObj = try? JSONSerialization.jsonObject(with: lsData) as? [String: Any],
+                   let pDict = lsObj["profile"] as? [String: Any] {
+                    lastUsed = pDict["last_used"] as? String
+                }
+                var chromiumProfiles: [BrowserProfile] = []
+                for child in try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]) where child.lastPathComponent == "Default" || child.lastPathComponent.hasPrefix("Profile ") {
                     guard (try? child.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else { continue }
                     var name = child.lastPathComponent
                     if let data = try? Data(contentsOf: child.appendingPathComponent("Preferences")), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let profile = object["profile"] as? [String: Any], let label = profile["name"] as? String { name = label }
-                    profiles.append(.init(name: name, path: child))
+                    chromiumProfiles.append(.init(name: name, path: child))
                 }
+                chromiumProfiles.sort { a, b in
+                    let isLastUsedA = lastUsed != nil && a.path.lastPathComponent == lastUsed!
+                    let isLastUsedB = lastUsed != nil && b.path.lastPathComponent == lastUsed!
+                    if isLastUsedA != isLastUsedB { return isLastUsedA }
+                    let dateA = (try? a.path.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    let dateB = (try? b.path.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                    if dateA != dateB { return dateA > dateB }
+                    return a.name.localizedStandardCompare(b.name) == .orderedAscending
+                }
+                profiles += chromiumProfiles
             }
         }
         var seen = Set<String>()
-        return profiles.filter { seen.insert($0.path.standardizedFileURL.path).inserted }.sorted { $0.path.path < $1.path.path }
+        return profiles.filter { seen.insert($0.path.standardizedFileURL.path).inserted }
     }
 
     public static func read(profile: URL, browser: BrowserID) throws -> Snapshot {

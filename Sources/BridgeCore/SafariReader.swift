@@ -20,12 +20,20 @@ enum SafariReader {
             }
             visit(root, parent: 0)
         } catch { result.warnings.append("Safari bookmarks unavailable: \(error.localizedDescription). Grant file access or export bookmarks from Safari for file-based import.") }
-        do {
-            try PlacesReader.rows(profile.appendingPathComponent("History.db"), sql: "SELECT i.url,v.title,v.visit_time FROM history_visits v JOIN history_items i ON v.history_item=i.id ORDER BY v.visit_time DESC") { q in
-                guard let url = PlacesReader.string(q, 0) else { return }
-                result.history.append(.init(url: url, title: PlacesReader.string(q, 1) ?? url, time: (sqlite3_column_double(q, 2) + 978307200) * 1000))
-            }
-        } catch { result.warnings.append("Safari history unavailable: \(error.localizedDescription). macOS may require Full Disk Access; original files are only backed up when readable.") }
+        let histDB = profile.appendingPathComponent("History.db")
+        if FileManager.default.fileExists(atPath: histDB.path) {
+            do {
+                try PlacesReader.withSafeReadCopy(histDB) { safeURL in
+                    try PlacesReader.rows(safeURL, sql: "SELECT i.url,v.title,v.visit_time FROM history_visits v JOIN history_items i ON v.history_item=i.id ORDER BY v.visit_time DESC") { q in
+                        guard let rawURL = PlacesReader.string(q, 0) else { return }
+                        let u = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !u.isEmpty, !u.hasPrefix("about:"), !u.hasPrefix("javascript:"), !u.hasPrefix("data:") else { return }
+                        let t = (PlacesReader.string(q, 1) ?? u).trimmingCharacters(in: .whitespacesAndNewlines)
+                        result.history.append(.init(url: u, title: t.isEmpty ? u : t, time: (sqlite3_column_double(q, 2) + 978307200) * 1000))
+                    }
+                }
+            } catch { result.warnings.append("Safari history unavailable: \(error.localizedDescription). macOS may require Full Disk Access; original files are only backed up when readable.") }
+        }
         result.warnings.append("Safari tabs, Tab Groups, pins, passwords and cookies are not decoded. Use Safari's supported exports; native state is archive-only when readable.")
         return result
     }

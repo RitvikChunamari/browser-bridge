@@ -27,6 +27,10 @@ public struct BrowserTab: Codable, Identifiable, Sendable {
     public let order: Int
     public let originalURL: String?
     public let container: Int
+
+    public init(id: String, url: String, title: String, pinned: Bool = false, essential: Bool = false, spaceID: String? = nil, folderID: String? = nil, order: Int = 0, originalURL: String? = nil, container: Int = 0) {
+        self.id = id; self.url = url; self.title = title; self.pinned = pinned; self.essential = essential; self.spaceID = spaceID; self.folderID = folderID; self.order = order; self.originalURL = originalURL; self.container = container
+    }
 }
 public struct Bookmark: Codable, Sendable {
     public let id: Int64
@@ -34,11 +38,38 @@ public struct Bookmark: Codable, Sendable {
     public let title: String
     public let url: String?
     public let type: Int
+
+    public init(id: Int64, parent: Int64, title: String, url: String? = nil, type: Int = 1) {
+        self.id = id; self.parent = parent; self.title = title; self.url = url; self.type = type
+    }
 }
 public struct HistoryItem: Codable, Sendable {
     public let url: String
     public let title: String
     public let time: Double
+    public var visitCount: Int
+    public var typedCount: Int
+
+    public init(url: String, title: String, time: Double, visitCount: Int = 1, typedCount: Int = 0) {
+        self.url = url
+        self.title = title
+        self.time = time
+        self.visitCount = visitCount
+        self.typedCount = typedCount
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case url, title, time, visitCount, typedCount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.url = try container.decode(String.self, forKey: .url)
+        self.title = try container.decodeIfPresent(String.self, forKey: .title) ?? url
+        self.time = try container.decodeIfPresent(Double.self, forKey: .time) ?? 0
+        self.visitCount = try container.decodeIfPresent(Int.self, forKey: .visitCount) ?? 1
+        self.typedCount = try container.decodeIfPresent(Int.self, forKey: .typedCount) ?? 0
+    }
 }
 public struct Snapshot: Codable, Sendable {
     public var nativeOrganization: NativeOrganization? = nil

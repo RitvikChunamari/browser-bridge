@@ -4,22 +4,60 @@ public enum ZenReader {
     public static func profiles(root: URL) throws -> [BrowserProfile] {
         let fm = FileManager.default
         var found: [BrowserProfile] = []
+        var defaultRelPath: String?
         let ini = root.appendingPathComponent("profiles.ini")
         if let text = try? String(contentsOf: ini, encoding: .utf8) {
+            var currentHeader = ""
             var section: [String: String] = [:]
             func flush() {
+                if currentHeader.hasPrefix("[Install") && section["Default"] != nil {
+                    defaultRelPath = section["Default"]
+                }
                 guard let path = section["Path"] else { return }
                 let url = section["IsRelative"] == "0" ? URL(fileURLWithPath: path) : root.appendingPathComponent(path)
-                if fm.fileExists(atPath: url.path) { found.append(.init(name: section["Name"] ?? url.lastPathComponent, path: url)) }
+                if fm.fileExists(atPath: url.path) {
+                    if section["Default"] == "1" && defaultRelPath == nil {
+                        defaultRelPath = path
+                    }
+                    found.append(.init(name: section["Name"] ?? url.lastPathComponent, path: url))
+                }
             }
             for raw in text.components(separatedBy: .newlines) {
                 let line = raw.trimmingCharacters(in: .whitespaces)
-                if line.hasPrefix("[") { flush(); section = [:] }
-                else if let eq = line.firstIndex(of: "=") { section[String(line[..<eq])] = String(line[line.index(after: eq)...]) }
+                if line.hasPrefix("[") {
+                    flush()
+                    currentHeader = line
+                    section = [:]
+                } else if let eq = line.firstIndex(of: "=") {
+                    section[String(line[..<eq])] = String(line[line.index(after: eq)...])
+                }
             }
             flush()
         }
-        return Array(Set(found)).sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        func profileScore(_ p: BrowserProfile) -> (Int, Double) {
+            let recovery = p.path.appendingPathComponent("sessionstore-backups/recovery.jsonlz4")
+            let hasLiveSession = fm.fileExists(atPath: recovery.path)
+            let places = p.path.appendingPathComponent("places.sqlite")
+            let placesDate = (try? places.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?.timeIntervalSince1970 ?? 0
+            let dirDate = (try? p.path.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)?.timeIntervalSince1970 ?? 0
+            let mostRecentActivity = max(placesDate, dirDate)
+            let isDefault = defaultRelPath != nil && (p.path.path.hasSuffix(defaultRelPath!) || p.path.lastPathComponent == URL(fileURLWithPath: defaultRelPath!).lastPathComponent)
+            
+            var tier = 0
+            if hasLiveSession { tier += 10 }
+            if isDefault { tier += 5 }
+            return (tier, mostRecentActivity)
+        }
+
+        let deduped = Array(Set(found))
+        return deduped.sorted { a, b in
+            let scoreA = profileScore(a)
+            let scoreB = profileScore(b)
+            if scoreA.0 != scoreB.0 { return scoreA.0 > scoreB.0 }
+            if scoreA.1 != scoreB.1 { return scoreA.1 > scoreB.1 }
+            return a.name.localizedStandardCompare(b.name) == .orderedAscending
+        }
     }
 
     public static func read(profile: URL) throws -> Snapshot {

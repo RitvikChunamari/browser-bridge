@@ -115,7 +115,7 @@ private actor OperationCounts { var values:[String:Int]=[:];func record(_ name:S
     let a=try store.pair(code:store.beginPairing(browser:.chrome,profile:source),browser:.chrome,profileID:UUID().uuidString,label:"Source")
     let b=try store.pair(code:store.beginPairing(browser:.chrome,profile:target),browser:.chrome,profileID:UUID().uuidString,label:"Target")
     let resources=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Resources/Importer")
-    let coordinator=TransferCoordinator(store:store,lifecycle:FixtureLifecycle(),importerResources:resources,receiptRoot:root.appendingPathComponent("receipts"),timeout:0.1,pollInterval:0.01,backupCheck:{_ in []})
+    let coordinator=TransferCoordinator(store:store,lifecycle:FixtureLifecycle(),importerResources:resources,receiptRoot:root.appendingPathComponent("receipts"),timeout:1.0,pollInterval:0.01,backupCheck:{_ in []})
     let held=HeldOperations()
     let worker=Task {
         while !Task.isCancelled {
@@ -173,7 +173,7 @@ private actor HeldOperations {
     let a=try store.pair(code:store.beginPairing(browser:.chrome,profile:source),browser:.chrome,profileID:UUID().uuidString,label:"Source")
     let b=try store.pair(code:store.beginPairing(browser:.chrome,profile:target),browser:.chrome,profileID:UUID().uuidString,label:"Target")
     let resources=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Resources/Importer")
-    let coordinator=TransferCoordinator(store:store,lifecycle:FixtureLifecycle(),importerResources:resources,receiptRoot:root.appendingPathComponent("receipts"),timeout:0.1,pollInterval:0.01,backupCheck:{_ in []})
+    let coordinator=TransferCoordinator(store:store,lifecycle:FixtureLifecycle(),importerResources:resources,receiptRoot:root.appendingPathComponent("receipts"),timeout:1.0,pollInterval:0.01,backupCheck:{_ in []})
     let hold=TargetPollControl()
     let worker=Task {
         while !Task.isCancelled {

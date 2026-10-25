@@ -2,13 +2,54 @@
 
 # Browser Bridge
 
-A free, MIT-licensed browser migration manager with a native Mac app and a Windows/Linux desktop preview for moving a portable browsing setup between **Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi**.
+A free, MIT-licensed browser migration manager with a native macOS app (`Browser Bridge.app`), a 1-Click Direct CLI (`bridge-migrate`), and a Windows/Linux desktop preview for moving your browsing setup between **Helium, Arc, Zen, Dia, Chrome, Firefox, Brave, Safari, Edge, Opera and Vivaldi**.
 
-Choose a source, choose a destination, inspect what transfers, and create a private migration package. Browser Bridge keeps originals intact and reports approximations, manual steps and unsupported categories. The Mac app uses SwiftUI with a bundled Rust credential helper; Windows/Linux use a Rust engine and Tauri interface. There are no paid services, migration accounts or cloud uploads.
+Choose a source browser, choose a destination browser, inspect live counts of bookmarks, tabs, spaces, and history, and migrate in a single click—or create a portable archive package. Browser Bridge preserves originals via automatic pre-migration backups (including SQLite WAL/SHM journals) and supports instant 1-click rollback. The Mac app is built in Swift 6 & SwiftUI following macOS Human Interface Guidelines (`FormStyle.grouped` System Settings pane) with a bundled Rust credential helper; Windows/Linux use a Rust engine and Tauri interface. There are no paid services, migration accounts or cloud uploads.
 
-**0.4 development preview · Universal Mac (Apple Silicon + Intel) · macOS 14+; Windows/Linux packages require their reported CI/runtime checks.** Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
+**v0.4.0-beta · Universal Mac (Apple Silicon + Intel) · macOS 14+; Windows/Linux packages require their reported CI/runtime checks.** Profile adapters and public browser APIs are not a promise that every native feature transfers between every browser version. Read the support table before migrating.
 
 If Browser Bridge helps you move browsers, [star the repository on GitHub](https://github.com/RitvikChunamari/browser-bridge) to find it again and support its discovery. Bug reports and reproducible browser fixtures are welcome too.
+
+## What's New in v0.4.0
+
+- **1-Click Direct Profile Migration Engine (`OneClickMigrator` & `bridge-migrate`)**: Directly reads and writes Chromium (`Bookmarks` JSON + `History` SQLite) and Firefox/Zen (`places.sqlite` + `sessionstore` LZ4) profiles without requiring unpacked extensions, developer mode flags, or pairing codes.
+- **Zen → Dia Multi-Space & Essentials Synchronization**:
+  - **Global Essentials Across All Spaces**: Propagates Zen's global `⭐ Essentials` into **every** Dia space (profile) on the bookmarks bar, inside `⭐ Essentials` and `⭐ Pinned Favorites` folders, and pinned as compact sidebar tiles.
+  - **Multi-Profile Workspace Mapping**: Automatically maps Zen spaces (`Personal`, `School`, `Work`, etc.) to Dia Chromium profiles (`Profile 9` / `Default`, `Profile 1`, `Profile 2`, etc.), preserving `📌 Pinned Tabs`, recursive nested subfolders, and open tabs per space.
+  - **Live AppleScript Sidebar Automation (`syncDiaLiveSpaces`)**: Focuses each Dia space window, deduplicates existing pinned tabs via canonical URL normalization (`canonicalKeyFor`), and pins Essentials and space pins into Dia's sidebar grid.
+- **Full Browsing History Migration**:
+  - **Zero-Lock Active Profile Reader (`PlacesReader.withSafeReadCopy`)**: Reads `History` and `places.sqlite` using `SQLITE_OPEN_READONLY | SQLITE_OPEN_URI` (`immutable=1`) and falls back to an isolated sandbox copy with `-wal`, `-shm`, and `-journal` sidecars if the browser holds an exclusive lock.
+  - **Complete Chromium v70 History Schema**: Initializes all 22 Chromium v70 `History` tables (`meta`, `urls`, `visits`, `visit_source`, `keyword_search_terms`, `downloads`, `segments`, `clusters`, `journeys`, etc.) with Windows FileTime microsecond timestamps (`(unixMs + 11644473600000) * 1000`) and `sqlite3_busy_timeout(db, 5000)` so Chromium/Dia never razes the database on launch.
+  - **Firefox / Zen Places History**: Writes `moz_places` and `moz_historyvisits` with reversed host indexing (`rev_host`), frecency scoring, and 12-char GUIDs for instant omnibox autocomplete.
+  - **History-Only Isolation & CLI Flags**: Supports `--no-history` and history-only transfers without clobbering existing bookmarks or sessions.
+- **Authentic macOS System Settings UI**:
+  - Rebuilt `BrowserBridge.app` (`Sources/BrowserBridge/App.swift`, `Sources/BrowserBridge/CredentialView.swift`) and desktop web UI (`desktop/app/ui/style.css`) around native macOS System Settings grouped containers (`Color(nsColor: .windowBackgroundColor)`, `Color(nsColor: .controlBackgroundColor)`, `1px` `separatorColor` dividers, `24×24pt` rounded-rect icon badges, native AppKit `.toggleStyle(.switch)` switches, `.buttonStyle(.borderedProminent)` CTAs, and `.monospacedDigit()` tabular counts).
+- **Atomic Pre-Flight Backup & 1-Click Rollback**:
+  - Automatically snapshots destination `Bookmarks`, `History`, `places.sqlite`, and WAL/SHM sidecar files before any write, and restores exact pre-migration state in one click (`Revert…` or `bridge-migrate --rollback <receipt-id>`).
+
+## 1-Click Direct Migration & CLI Quick Start
+
+In `Browser Bridge.app`, open the **Transfer** tab, pick your **Source Browser** and **Destination Browser**, toggle the items you want to transfer (**Bookmarks & Folders**, **Open Tabs & Pinned Favorites**, **Spaces & Tab Groups**, **Browsing History**), and click **Migrate**.
+
+You can also run 1-Click migrations directly from Terminal via `bridge-migrate`:
+
+```sh
+# Preview live counts (bookmarks, tabs, spaces, history) without modifying files
+swift run bridge-migrate --dry-run zen dia
+
+# Run a 1-click live migration from Zen to Dia (bookmarks, spaces, Essentials, tabs, and history)
+swift run bridge-migrate zen dia
+
+# Migrate without browsing history
+swift run bridge-migrate --no-history chrome brave
+
+# Synchronize Zen spaces and pinned sidebar tiles into a running Dia instance
+swift run bridge-migrate --sync-dia
+
+# List receipts or roll back a previous migration
+swift run bridge-migrate --receipts
+swift run bridge-migrate --rollback <receipt-id>
+```
 
 ## Connected Transfer
 
@@ -41,17 +82,17 @@ A capture fills missing local tabs/bookmarks/history. If the native profile alre
 
 | Browser | Source route | Destination route | Native feature boundary |
 |---|---|---|---|
-| Helium | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
-| Arc | Chromium profile + live capture | Chromium helper | Optional macOS scripting captures exposed Spaces/Favorites and tab locations; folder hierarchy/native destination writes are unavailable; known Storable files retained |
-| Zen | Mozilla profile + Zen session metadata | Firefox-family helper | Essentials → pins; spaces/nested folders → bookmark trees |
-| Dia | Chromium profile + live capture | Chromium helper | Native Favorites/spaces and persistence are not created/verified |
-| Chrome | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave route verified; other versions guided |
-| Firefox | Mozilla profile/session + live capture | Firefox helper, 128+ | Newer group APIs detected at runtime; temporary add-on limitations apply |
-| Brave | Chromium profile + live capture | Chromium helper | Exact Apple Silicon Chrome → Brave destination verified; other routes guided |
-| Safari | Readable plist/history, HTML or optional native open-window capture | Manual bookmark HTML import | Ordinary tabs captured with Automation consent; private windows must be closed; pins/Tab Groups unknown; history activation unavailable |
-| Edge | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
-| Opera | Chromium profile + live capture | Chromium helper | Vendor build not end-to-end verified |
-| Vivaldi | Chromium profile + live capture | Chromium helper | Native workspaces/tab stacks not decoded |
+| Helium | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Bookmarks, folders, tabs, and Chromium v70 history |
+| Arc | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Optional macOS scripting captures exposed Spaces/Favorites and tab locations; multi-profile history and bookmark folders supported |
+| Zen | 1-Click Direct + Mozilla profile + Zen session metadata | 1-Click Direct + Firefox-family helper | Global Essentials, multi-space folders, pinned tabs, and `places.sqlite` history |
+| Dia | 1-Click Direct + Chromium multi-profile + live capture | 1-Click Direct (multi-space + AppleScript sidebar pin sync) + Chromium helper | Maps spaces to Dia profiles, propagates Essentials across all spaces, pins sidebar tiles, and writes Chromium v70 history |
+| Chrome | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Exact Apple Silicon Chrome → Brave connected route verified; 1-Click Direct supports bookmarks, tabs, groups, and history |
+| Firefox | 1-Click Direct + Mozilla profile/session + live capture | 1-Click Direct + Firefox helper, 128+ | Direct `places.sqlite` bookmark/history injection (`rev_host` + frecency) and WebExtension helper |
+| Brave | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Exact Apple Silicon Chrome → Brave destination verified; 1-Click Direct supports bookmarks, tabs, groups, and history |
+| Safari | Readable plist/history, HTML or optional native open-window capture | Bookmark HTML export + guided import | Ordinary tabs captured with Automation consent; private windows must be closed; history read supported when Full Disk Access is granted |
+| Edge | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Bookmarks, folders, tabs, and Chromium v70 history |
+| Opera | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Bookmarks, folders, tabs, and Chromium v70 history |
+| Vivaldi | 1-Click Direct + Chromium profile + live capture | 1-Click Direct + Chromium helper | Bookmarks, folders, tabs, and Chromium v70 history |
 
 Browser discovery includes standard data directories and a manual-folder option. Custom install paths, profiles and future formats may require an adapter update. “Family adapter” and “actual browser tested” are separate claims.
 

@@ -7,9 +7,13 @@ import BridgeCore
     @NSApplicationDelegateAdaptor(CredentialExitDelegate.self) private var credentialExitDelegate
     private let store = MigrationStore()
     var body: some Scene {
-        WindowGroup("Browser Bridge") { ManagerView(store: store).frame(minWidth: 900, minHeight: 680) }
-            .defaultSize(width: 1120, height: 860)
-            .commands { CommandGroup(replacing: .newItem) {} }
+        WindowGroup("Browser Bridge") {
+            ManagerView(store: store)
+                .frame(minWidth: 920, minHeight: 680)
+        }
+        .windowToolbarStyle(.unified(showsTitle: true))
+        .defaultSize(width: 1120, height: 860)
+        .commands { CommandGroup(replacing: .newItem) {} }
     }
 }
 enum Page: String, CaseIterable, Identifiable {
@@ -22,7 +26,7 @@ enum Page: String, CaseIterable, Identifiable {
     var transferring = false
     var transferReceipt: TransferReceipt?
     var transferReceipts: [TransferReceipt] = []
-    var transferHistory = false
+    var transferHistory = true
     var transferGroups = false
     var gracefulQuitAcknowledged = false
     var connectorConnections: [ConnectorConnection] = []
@@ -48,6 +52,21 @@ enum Page: String, CaseIterable, Identifiable {
     var backupDirectory: URL? = UserDefaults.standard.url(forKey: "transferBackupDirectory")
     var page: Page = .transfer
     let demo = CommandLine.arguments.contains("--demo")
+
+    // One-Click Migration
+    var isMigratingOneClick = false
+    var oneClickPhaseText = ""
+    var oneClickProgress: Double = 0.0
+    var oneClickPhaseStep: Int = 0
+    var oneClickReceipt: OneClickReceipt?
+    var oneClickReceipts: [OneClickReceipt] = []
+    var openDestinationAfterMigration = true
+    var closeDestinationBeforeMigrating = true
+    var oneClickTransferBookmarks = true
+    var oneClickTransferTabs = true
+    var oneClickTransferGroups = true
+    var oneClickTransferHistory = true
+
     var selected: BrowserProfile? { profiles.first { $0.id == selectedID } }
     var target: BrowserProfile? { targetProfiles.first { $0.id == targetID } }
     var packageURLs: [URL] { savedPaths.map { URL(fileURLWithPath: $0) } }
@@ -59,6 +78,164 @@ enum Page: String, CaseIterable, Identifiable {
         guard !demo, !transferring, backupDirectory != nil, gracefulQuitAcknowledged, let source = connectedSource, let destination = connectedDestination else { return false }
         return source.connected && destination.connected && AutomaticRoutes.allows(source, destination)
     }
+
+    func refreshOneClickReceipts() {
+        guard !demo else { return }
+        Task { do {
+            _ = try? OneClickMigrator.cleanTestReceipts()
+            oneClickReceipts = try OneClickMigrator.receipts()
+        } catch { print("OneClick receipts: \(error)") } }
+    }
+
+    func startOneClickMigration() {
+        guard !isMigratingOneClick, !transferring else { return }
+
+        if demo {
+            isMigratingOneClick = true
+            oneClickPhaseStep = 1
+            oneClickProgress = 0.25
+            oneClickPhaseText = "Inspecting demo \(sourceBrowser.name) profile data…"
+            error = nil
+            _ = Task {
+                try await Task.sleep(for: .milliseconds(350))
+                oneClickPhaseStep = 2
+                oneClickProgress = 0.60
+                oneClickPhaseText = "Simulating safe pre-migration backup of \(targetBrowser.name)…"
+                try await Task.sleep(for: .milliseconds(400))
+                oneClickPhaseStep = 3
+                oneClickProgress = 0.90
+                oneClickPhaseText = "Injecting bookmarks, tabs & groups into \(targetBrowser.name)…"
+                try await Task.sleep(for: .milliseconds(350))
+                oneClickPhaseStep = 4
+                oneClickProgress = 1.0
+                oneClickPhaseText = "Migration complete!"
+                let receipt = OneClickReceipt(
+                    sourceBrowser: sourceBrowser,
+                    sourceProfilePath: "/demo/source",
+                    destinationBrowser: targetBrowser,
+                    destinationProfilePath: "/demo/target",
+                    backupDirectoryPath: "/demo/backups",
+                    migratedFolder: "Migrated from \(sourceBrowser.name)",
+                    bookmarksCount: snapshot?.bookmarks.count ?? 8,
+                    tabsCount: snapshot?.tabs.count ?? 2,
+                    groupsCount: snapshot?.spaces.count ?? 2,
+                    historyCount: oneClickTransferHistory ? (snapshot?.history.count ?? 150) : 0,
+                    status: "complete"
+                )
+                oneClickReceipt = receipt
+                oneClickReceipts.insert(receipt, at: 0)
+                notice = "Successfully migrated from \(sourceBrowser.name) to \(targetBrowser.name) in 1 click! 🎉"
+                isMigratingOneClick = false
+            }
+            return
+        }
+
+        guard let source = selected?.path else {
+            error = "Select an existing source browser profile."
+            return
+        }
+        var targetPath: URL
+        if targetBrowser == .dia {
+            if let root = targetBrowser.roots().first {
+                targetPath = root
+            } else {
+                let home = FileManager.default.homeDirectoryForCurrentUser
+                targetPath = home.appendingPathComponent("Library/Application Support/Dia/User Data")
+            }
+        } else if let chosen = target?.path {
+            targetPath = chosen
+        } else if let discovered = targetProfiles.first?.path {
+            targetPath = discovered
+        } else {
+            if let root = targetBrowser.roots().first {
+                targetPath = root.appendingPathComponent("Default")
+            } else {
+                let home = FileManager.default.homeDirectoryForCurrentUser
+                targetPath = home.appendingPathComponent(targetBrowser.dataPaths.first ?? "Library/Application Support/\(targetBrowser.name)").appendingPathComponent("Default")
+            }
+        }
+
+        isMigratingOneClick = true
+        oneClickPhaseStep = 1
+        oneClickProgress = 0.25
+        oneClickPhaseText = "Reading \(sourceBrowser.name) profile data…"
+        error = nil
+
+        Task {
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+                oneClickPhaseStep = 2
+                oneClickProgress = 0.60
+                oneClickPhaseText = "Preserving \(targetBrowser.name) pre-migration backup safely…"
+                try await Task.sleep(for: .milliseconds(350))
+                oneClickPhaseStep = 3
+                oneClickProgress = 0.90
+                oneClickPhaseText = "Writing bookmarks, tabs, groups & history to \(targetBrowser.name)…"
+
+                let opts = TransferOptions(
+                    bookmarks: oneClickTransferBookmarks,
+                    tabs: oneClickTransferTabs,
+                    history: oneClickTransferHistory,
+                    groups: oneClickTransferGroups
+                )
+
+                let receipt = try await OneClickMigrator.migrate(
+                    sourceBrowser: sourceBrowser,
+                    sourceProfile: source,
+                    destinationBrowser: targetBrowser,
+                    destinationProfile: targetPath,
+                    options: opts,
+                    backupDirectory: backupDirectory,
+                    closeDestinationIfRunning: closeDestinationBeforeMigrating,
+                    openDestination: openDestinationAfterMigration
+                )
+
+                oneClickPhaseStep = 4
+                oneClickProgress = 1.0
+                oneClickPhaseText = "Migration complete!"
+                try await Task.sleep(for: .milliseconds(200))
+                oneClickReceipt = receipt
+                notice = "Successfully migrated from \(sourceBrowser.name) to \(targetBrowser.name) in 1 click! 🎉"
+                refreshOneClickReceipts()
+                isMigratingOneClick = false
+            } catch {
+                isMigratingOneClick = false
+                oneClickProgress = 0.0
+                oneClickPhaseStep = 0
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func rollbackOneClick(_ receipt: OneClickReceipt) {
+        let alert = NSAlert()
+        alert.messageText = "Undo this migration?"
+        alert.informativeText = "This will restore the \(receipt.destinationBrowser.name) profile from the pre-migration backup, removing migrated items while keeping any original destination bookmarks and tabs intact."
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Roll back migration")
+        guard alert.runModal() == .alertSecondButtonReturn else { return }
+
+        Task {
+            if demo {
+                if let idx = oneClickReceipts.firstIndex(where: { $0.id == receipt.id }) {
+                    oneClickReceipts[idx].status = "rolled-back"
+                }
+                if oneClickReceipt?.id == receipt.id {
+                    oneClickReceipt?.status = "rolled-back"
+                }
+                notice = "Rollback complete. Restored \(receipt.destinationBrowser.name) pre-migration state."
+                return
+            }
+            do {
+                try await OneClickMigrator.rollback(receipt: receipt, closeDestinationIfRunning: closeDestinationBeforeMigrating)
+                notice = "Rollback complete. Restored \(receipt.destinationBrowser.name) to its pre-migration backup."
+                refreshOneClickReceipts()
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+
     private func transferCoordinator() throws -> TransferCoordinator {
         guard let resources = Bundle.main.resourceURL else { throw ConnectorError.rejected("Open the packaged Mac app to transfer.") }
         return TransferCoordinator(store: try ConnectorStore(), lifecycle: MacBrowserLifecycle(), importerResources: resources.appendingPathComponent("Importer"))
@@ -88,7 +265,7 @@ enum Page: String, CaseIterable, Identifiable {
             let coordinator = try transferCoordinator()
             let options = TransferOptions(history: transferHistory, groups: transferGroups)
             transferring = true; error = nil
-            Task {
+            _ = Task {
                 let monitor = Task { while !Task.isCancelled { self.transferReceipt = await coordinator.currentReceipt; try? await Task.sleep(for: .milliseconds(400)) } }
                 defer { monitor.cancel(); transferring = false; refreshTransfers() }
                 do { transferReceipt = try await coordinator.transfer(source: source, destination: destination, package: package, options: options); notice = "Transfer verified. Review its receipt and retained backup." }
@@ -106,7 +283,7 @@ enum Page: String, CaseIterable, Identifiable {
         }
         do {
             let coordinator = try transferCoordinator(); transferring = true; error = nil
-            Task {
+            _ = Task {
                 let monitor = Task { while !Task.isCancelled { self.transferReceipt = await coordinator.currentReceipt; try? await Task.sleep(for: .milliseconds(400)) } }
                 defer { monitor.cancel(); transferring = false; refreshTransfers() }
                 do {
@@ -272,144 +449,667 @@ enum Page: String, CaseIterable, Identifiable {
         savedPaths.removeAll { $0 == url.path }; savedPaths.insert(url.path, at: 0); UserDefaults.standard.set(savedPaths, forKey: "packages")
     }
 }
+enum AppleDesign {
+    static let actionBlue = Color.accentColor
+    static let skyBlue = Color(nsColor: .linkColor)
+    static let systemGreen = Color(nsColor: .systemGreen)
+    static let systemIndigo = Color(nsColor: .systemIndigo)
+    static let systemOrange = Color(nsColor: .systemOrange)
+    static let spring = Animation.spring(response: 0.28, dampingFraction: 0.88)
+}
+
+struct NativeGroupSurfaceModifier: ViewModifier {
+    var cornerRadius: CGFloat = 10
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.65), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func nativeGroupSurface(cornerRadius: CGFloat = 10) -> some View {
+        modifier(NativeGroupSurfaceModifier(cornerRadius: cornerRadius))
+    }
+
+    func liquidGlassCard(cornerRadius: CGFloat = 10, tint: Color = .clear, isElevated: Bool = false) -> some View {
+        modifier(NativeGroupSurfaceModifier(cornerRadius: cornerRadius))
+    }
+}
+
 struct ManagerView: View {
     @Bindable var store: MigrationStore
-    private let accent = Color(red: 0.18, green: 0.38, blue: 0.26)
+    private let accent = Color.accentColor
+
+    private func browserBadgeIcon(for browser: BrowserID) -> (symbol: String, color: Color) {
+        switch browser {
+        case .safari: return ("safari.fill", .blue)
+        case .zen: return ("circle.hexagongrid.fill", .primary)
+        case .dia: return ("sparkles", .indigo)
+        case .arc: return ("rays", .pink)
+        case .brave: return ("shield.lefthalf.filled", .orange)
+        case .firefox: return ("flame.fill", .orange)
+        case .chrome: return ("globe", .blue)
+        case .helium: return ("bolt.circle.fill", .cyan)
+        case .edge: return ("wave.3.right.circle.fill", .teal)
+        case .opera: return ("circle.circle.fill", .red)
+        case .vivaldi: return ("v.circle.fill", .red)
+        }
+    }
+
+    private func settingsIconBadge(symbol: String, color: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.gradient)
+                .frame(width: 24, height: 24)
+            Image(systemName: symbol)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.white)
+        }
+    }
+
     private var transfer: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Bring your browser with you").font(.largeTitle.weight(.semibold))
-            Text("After connecting both profiles, a verified route captures live data, closes the browsers normally, saves a checksummed backup, reopens the exact destination and checks both the imported result and your existing destination tabs and bookmarks.").foregroundStyle(.secondary)
-            GroupBox("Selected route") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Label("\(store.sourceBrowser.name) → \(store.targetBrowser.name)", systemImage: "arrow.right").font(.title2.weight(.semibold))
-                    Text("Source: \(store.connectedSource?.label ?? "Connect the selected profile")")
-                    Text("Destination: \(store.connectedDestination?.label ?? "Connect the selected profile")")
-                    if let a = store.connectedSource, let b = store.connectedDestination, AutomaticRoutes.allows(a, b) {
-                        Label("This exact browser-version route has lifecycle verification", systemImage: "checkmark.seal").foregroundStyle(.green)
-                    } else {
-                        Text("Automatic transfer is unavailable for this route. Connection and browser-family similarity do not establish lifecycle acceptance. Create a guided migration package below.").foregroundStyle(.secondary)
+            // Native macOS Settings Header
+            HStack(alignment: .center, spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.accentColor.gradient)
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Browser Migration")
+                        .font(.title2.weight(.semibold))
+                    Text("Transfer bookmarks, open tabs, spaces, and history directly between local browser profiles.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.bottom, 2)
+
+            // Section 1: Route (Source & Destination)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Migration Route")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+
+                VStack(spacing: 0) {
+                    // Source Browser Row
+                    HStack(spacing: 12) {
+                        let badge = browserBadgeIcon(for: store.sourceBrowser)
+                        settingsIconBadge(symbol: badge.symbol, color: badge.color)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Source Browser")
+                                .font(.body.weight(.medium))
+                            if store.loading {
+                                Text("Scanning profile…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else if let s = store.snapshot {
+                                Text("\(s.bookmarks.count.formatted()) bookmarks · \(s.tabs.count.formatted()) tabs · \(s.spaces.count.formatted()) spaces · \(s.history.count.formatted()) history items")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            } else {
+                                Text("No profile data loaded")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Picker("Source Browser", selection: $store.sourceBrowser) {
+                            ForEach(BrowserID.allCases) { browser in
+                                Text(browser.name).tag(browser)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 130)
+
+                        Picker("Source Profile", selection: $store.selectedID) {
+                            if store.profiles.isEmpty {
+                                Text("No profile").tag("")
+                            }
+                            ForEach(store.profiles) { p in
+                                Text(p.name).tag(p.id)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 165)
+
+                        Button("Choose…") { store.chooseProfile() }
+                            .controlSize(.small)
                     }
-                    Toggle("Include history (requires permission in both profiles)", isOn: $store.transferHistory)
-                    Toggle("Preserve portable tab groups (requires permission in both profiles)", isOn: $store.transferGroups)
-                    Text("Tabs, pin states, nested bookmark folders and portable window/group approximations are included. Native spaces, credentials and active sessions have guided or archive-only limits.").font(.caption).foregroundStyle(.secondary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+
+                    Divider().padding(.leading, 50)
+
+                    // Destination Browser Row
+                    HStack(spacing: 12) {
+                        let badge = browserBadgeIcon(for: store.targetBrowser)
+                        settingsIconBadge(symbol: badge.symbol, color: badge.color)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Destination Browser")
+                                .font(.body.weight(.medium))
+                            if store.targetBrowser == .dia {
+                                if let spaces = store.snapshot?.spaces, !spaces.isEmpty {
+                                    Text("Automatically maps \(spaces.count) \(store.sourceBrowser.name) spaces, essentials, and history into Dia")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("Automatically maps spaces, pinned tabs, and history into Dia")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                Text("Direct local profile injection with automatic pre-migration backup")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        Picker("Destination Browser", selection: $store.targetBrowser) {
+                            ForEach(BrowserID.allCases) { browser in
+                                Text(browser.name).tag(browser)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 130)
+
+                        if store.targetBrowser == .dia {
+                            Text("All Spaces")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 165, alignment: .trailing)
+                        } else {
+                            Picker("Destination Profile", selection: $store.targetID) {
+                                if store.targetProfiles.isEmpty {
+                                    Text("Default").tag("")
+                                }
+                                ForEach(store.targetProfiles) { p in
+                                    Text(p.name).tag(p.id)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 165)
+                        }
+
+                        Button("Choose…") { store.chooseProfile(destination: true) }
+                            .controlSize(.small)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                }
+                .nativeGroupSurface()
+            }
+
+            // Section 2: Data Categories & Options (Inset Grouped Form Rows)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Items to Transfer")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+
+                VStack(spacing: 0) {
+                    settingsToggleRow(
+                        title: "Bookmarks & Folders",
+                        subtitle: "Preserves bookmark bar, hierarchy, and nested folders",
+                        symbol: "book.closed.fill",
+                        color: .orange,
+                        isOn: $store.oneClickTransferBookmarks
+                    )
+                    Divider().padding(.leading, 50)
+                    settingsToggleRow(
+                        title: "Open Tabs & Pinned Favorites",
+                        subtitle: "Transfers Essentials, pinned sidebar tiles, and open tabs",
+                        symbol: "macwindow.on.rectangle",
+                        color: .blue,
+                        isOn: $store.oneClickTransferTabs
+                    )
+                    Divider().padding(.leading, 50)
+                    settingsToggleRow(
+                        title: "Spaces & Tab Groups",
+                        subtitle: "Maps workspaces and tab groups to destination profiles",
+                        symbol: "square.grid.2x2.fill",
+                        color: .indigo,
+                        isOn: $store.oneClickTransferGroups
+                    )
+                    Divider().padding(.leading, 50)
+                    settingsToggleRow(
+                        title: "Browsing History",
+                        subtitle: "Copies visited URLs, page titles, and timestamps for autocomplete",
+                        symbol: "clock.fill",
+                        color: .green,
+                        isOn: $store.oneClickTransferHistory
+                    )
+                }
+                .nativeGroupSurface()
+            }
+
+            // Section 3: Behavior & Action Bar
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Options")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+
+                VStack(spacing: 0) {
                     HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Backup folder").font(.headline)
-                            Text(store.backupDirectory?.path ?? "Choose once. Each transfer creates its own retained backup.").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                        settingsIconBadge(symbol: "power.circle.fill", color: .gray)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Quit \(store.targetBrowser.name) before migrating")
+                                .font(.body)
+                            Text("Safely closes \(store.targetBrowser.name) so profile databases are unlocked during backup and write")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button(store.backupDirectory == nil ? "Choose folder…" : "Change…", action: store.chooseBackupDirectory)
+                        Toggle("", isOn: $store.closeDestinationBeforeMigrating)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
                     }
-                    if store.connectedSource == nil || store.connectedDestination == nil {
-                        Button("Set up browser connections") { store.page = .connections }
-                    }
-                    Toggle("I understand that Transfer requests a normal quit of all windows in the selected browser apps, and may pause for unsaved-work prompts.", isOn: $store.gracefulQuitAcknowledged)
-                    Button("Transfer", action: store.startTransfer).buttonStyle(.borderedProminent).tint(accent).controlSize(.large).disabled(!store.automaticTransferReady)
-                }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-            }.disabled(store.transferring)
-            if let receipt = store.transferReceipt {
-                GroupBox("Current transfer") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack { if store.transferring { ProgressView().controlSize(.small) }; Text(receipt.phase.rawValue).font(.headline) }
-                        if let error = receipt.error { Text(error).foregroundStyle(.secondary) }
-                        Text(receipt.packagePath).font(.caption).textSelection(.enabled)
-                        Text("The receipt records each phase. A paused or mismatched transfer is not reported as complete.").font(.caption).foregroundStyle(.secondary)
-                    }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            HStack { Text("Transfer receipts").font(.title2.weight(.semibold)); Spacer(); Button("Refresh", action: store.refreshTransfers) }
-            if store.transferReceipts.isEmpty { Text("No coordinated transfers yet. Guided exports remain available in Saved packages.").foregroundStyle(.secondary) }
-            ForEach(store.transferReceipts) { receipt in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("\(receipt.source.browser.name) → \(receipt.destination.browser.name) · \(receipt.phase.rawValue)").font(.headline)
-                    Text(receipt.updatedAt, style: .date).font(.caption).foregroundStyle(.secondary)
-                    if let error = receipt.error { Text(error).font(.callout) }
-                    Text("\(receipt.source.label) → \(receipt.destination.label)").font(.caption)
-                    Text(receipt.destination.profilePath).font(.caption).textSelection(.enabled)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().padding(.leading, 50)
+
                     HStack {
-                        Button("Reveal receipt") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receipt.receiptPath)]) }
-                        if [.paused, .capturing, .capturingDestination, .closing, .backingUp, .reopening, .importing, .verifying, .checkingDestination, .rollingBack].contains(receipt.phase) {
-                            Button("Resume") { store.recoverTransfer(receipt) }.disabled(store.transferring)
+                        settingsIconBadge(symbol: "arrow.up.forward.app.fill", color: .blue)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Reopen \(store.targetBrowser.name) when finished")
+                                .font(.body)
+                            Text("Launches \(store.targetBrowser.name) and restores your spaces and pinned tabs")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        if receipt.packageID != nil && [.complete, .paused, .rollbackPartial].contains(receipt.phase) {
-                            Button("Roll back…") { store.recoverTransfer(receipt, rollback: true) }.disabled(store.transferring)
+                        Spacer()
+                        Toggle("", isOn: $store.openDestinationAfterMigration)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider()
+
+                    // Action Footer Bar inside the Group
+                    if store.isMigratingOneClick {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text(store.oneClickPhaseText)
+                                    .font(.subheadline.weight(.medium))
+                                Spacer()
+                                Text("\(Int(store.oneClickProgress * 100))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            ProgressView(value: store.oneClickProgress, total: 1.0)
+                                .progressViewStyle(.linear)
+                            HStack(spacing: 16) {
+                                StepIndicator(step: 1, current: store.oneClickPhaseStep, title: "Inspect")
+                                StepIndicator(step: 2, current: store.oneClickPhaseStep, title: "Backup")
+                                StepIndicator(step: 3, current: store.oneClickPhaseStep, title: "Transfer")
+                                StepIndicator(step: 4, current: store.oneClickPhaseStep, title: "Complete")
+                            }
                         }
-                        if receipt.phase == .paused {
-                            Button("Cancel undelivered operation") { store.cancelUndelivered(receipt) }.disabled(store.transferring)
+                        .padding(14)
+                    } else {
+                        HStack {
+                            Label("Pre-migration backup is created automatically before any changes.", systemImage: "checkmark.shield.fill")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                store.startOneClickMigration()
+                            } label: {
+                                Text("Migrate to \(store.targetBrowser.name)")
+                                    .padding(.horizontal, 6)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                            .disabled(store.selected == nil && !store.demo)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(Color(nsColor: .windowBackgroundColor).opacity(0.35))
+                    }
+                }
+                .nativeGroupSurface()
+            }
+
+            // Latest Receipt Banner (if just completed)
+            if let receipt = store.oneClickReceipt {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Migration to \(receipt.destinationBrowser.name) Complete")
+                                .font(.headline)
+                            Text("\(receipt.bookmarksCount.formatted()) bookmarks · \(receipt.tabsCount.formatted()) tabs · \(receipt.groupsCount.formatted()) spaces · \(receipt.historyCount.formatted()) history items")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Spacer()
+                        Button("Show Backup in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receipt.backupDirectoryPath)])
+                        }
+                        .controlSize(.small)
+
+                        Button("Undo Migration…") {
+                            store.rollbackOneClick(receipt)
+                        }
+                        .controlSize(.small)
+
+                        Button("Open \(receipt.destinationBrowser.name)") {
+                            _ = OneClickMigrator.launchDestinationWithTabs(browser: receipt.destinationBrowser, tabs: store.snapshot?.tabs ?? [])
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                }
+                .padding(14)
+                .nativeGroupSurface()
+            }
+
+            // Section 4: Migration History & Backups
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Previous Migrations")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Refresh") { store.refreshOneClickReceipts() }
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                }
+                .padding(.horizontal, 4)
+
+                VStack(spacing: 0) {
+                    if store.oneClickReceipts.isEmpty {
+                        HStack {
+                            Text("No previous migrations recorded on this Mac.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(14)
+                    } else {
+                        ForEach(Array(store.oneClickReceipts.enumerated()), id: \.element.id) { index, receipt in
+                            if index > 0 {
+                                Divider().padding(.leading, 14)
+                            }
+                            HStack(spacing: 12) {
+                                let isRolledBack = receipt.status == "rolled-back"
+                                Circle()
+                                    .fill(isRolledBack ? Color.orange : Color.green)
+                                    .frame(width: 8, height: 8)
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text("\(receipt.sourceBrowser.name) → \(receipt.destinationBrowser.name)")
+                                            .font(.body.weight(.medium))
+                                        Text(isRolledBack ? "Rolled Back" : "Completed")
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundStyle(isRolledBack ? .orange : .secondary)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 1)
+                                            .background(Color.primary.opacity(0.06), in: Capsule())
+                                    }
+                                    Text("\(receipt.bookmarksCount.formatted()) bookmarks · \(receipt.tabsCount.formatted()) tabs · \(receipt.groupsCount.formatted()) spaces · \(receipt.historyCount.formatted()) history · \(receipt.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                                Spacer()
+                                if receipt.status != "rolled-back" {
+                                    Button("Revert…") {
+                                        store.rollbackOneClick(receipt)
+                                    }
+                                    .controlSize(.small)
+                                }
+                                Button("Show Backup") {
+                                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: receipt.backupDirectoryPath)])
+                                }
+                                .controlSize(.small)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
                         }
                     }
-                    if receipt.phase == .rollbackPartial { Text("Some items were retained. Read the receipt before making further changes.").font(.caption).foregroundStyle(.secondary) }
-                }.padding(.vertical, 8)
+                }
+                .nativeGroupSurface()
             }
-        }.onAppear(perform: store.refreshTransfers)
+        }
+        .onAppear {
+            store.refreshTransfers()
+            store.refreshOneClickReceipts()
+        }
+    }
+
+    private func settingsToggleRow(title: String, subtitle: String, symbol: String, color: Color, isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 12) {
+            settingsIconBadge(symbol: symbol, color: color)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.body)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
     }
     private var connections: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Connect a browser profile").font(.largeTitle.weight(.semibold))
-            Text("Install once in each profile. The local connector receives only operations you start in this Mac app.").foregroundStyle(.secondary)
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Confirm the selected source profile").font(.headline)
-                    Text(store.selected?.path.path ?? "Choose a source profile above.").font(.system(.callout, design: .monospaced)).textSelection(.enabled)
-                    Toggle("I checked this folder against the profile path shown in this browser’s version/support page.", isOn: $store.profileAssociationConfirmed)
-                    Text("Extensions cannot report their filesystem profile path. This confirmation associates the chosen folder with the connector you install.").font(.caption).foregroundStyle(.secondary)
-                    Button("Install local host and create pairing code", action: store.connectProfile).disabled(store.demo || store.selected == nil || !store.profileAssociationConfirmed || store.sourceBrowser == .safari)
-                    if !store.pairingCode.isEmpty {
-                        Text("2. Load the Connector folder in \(store.sourceBrowser.name)").font(.headline)
-                        Text(store.sourceBrowser.family == .firefox ? "Open about:debugging → This Firefox → Load Temporary Add-on, then choose manifest.json. Temporary installation disappears when Firefox/Zen exits; reconnect it after restart." : "Open chrome://extensions, enable Developer mode, choose Load unpacked and select the revealed folder.")
-                        Text("3. Open the connector toolbar button and paste this code (expires in ten minutes)").font(.headline)
-                        HStack { Text(store.pairingCode).font(.system(.callout, design: .monospaced)).textSelection(.enabled); Button("Copy code") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(store.pairingCode, forType: .string) } }
-                    }
-                }.padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Connect a Browser Profile")
+                    .font(.title2.weight(.semibold))
+                Text("Install once in each profile. The local connector receives only operations you start in this Mac app.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            HStack { Text("Connected profiles").font(.title2.weight(.semibold)); Spacer(); Button("Refresh", action: store.refreshConnections) }
-            if store.connectorConnections.isEmpty { Text("No profiles connected yet. Safari uses the guided file transfer.").foregroundStyle(.secondary) }
-            ForEach(store.connectorConnections) { connection in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack { Text("\(connection.browser.name) · \(connection.label)").font(.headline); Spacer(); Text(connection.connected ? "Connected" : "Waiting for browser").foregroundStyle(connection.connected ? .green : .secondary) }
-                    Text(connection.profilePath).font(.caption).textSelection(.enabled)
-                    if let version = connection.browserVersion { Text("Observed browser version: \(version)").font(.caption).foregroundStyle(.secondary) }
-                    if let executable = connection.browserExecutable { Text(executable).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
-                    Text("Connection is separate from automatic transfer verification. Unverified browser pairs use the guided flow.").font(.caption).foregroundStyle(.secondary)
-                    Button("Disconnect") { do { try ConnectorStore().disconnect(connection.id); store.refreshConnections() } catch { store.error = error.localizedDescription } }
-                }.padding(.vertical, 8)
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text("1. Confirm the selected source profile").font(.headline)
+                Text(store.selected?.path.path ?? "Choose a source profile above.")
+                    .font(.system(.callout, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                Toggle("I checked this folder against the profile path shown in this browser’s version/support page.", isOn: $store.profileAssociationConfirmed)
+                Text("Extensions cannot report their filesystem profile path. This confirmation associates the chosen folder with the connector you install.").font(.caption).foregroundStyle(.secondary)
+                Button("Install Local Host & Create Pairing Code", action: store.connectProfile)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.demo || store.selected == nil || !store.profileAssociationConfirmed || store.sourceBrowser == .safari)
+                if !store.pairingCode.isEmpty {
+                    Divider()
+                    Text("2. Load the Connector folder in \(store.sourceBrowser.name)").font(.headline)
+                    Text(store.sourceBrowser.family == .firefox ? "Open about:debugging → This Firefox → Load Temporary Add-on, then choose manifest.json. Temporary installation disappears when Firefox/Zen exits; reconnect it after restart." : "Open chrome://extensions, enable Developer mode, choose Load unpacked and select the revealed folder.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Text("3. Open the connector toolbar button and paste this code (expires in ten minutes)").font(.headline)
+                    HStack(spacing: 12) {
+                        Text(store.pairingCode)
+                            .font(.system(.body, design: .monospaced).weight(.semibold))
+                            .textSelection(.enabled)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        Button("Copy Code") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(store.pairingCode, forType: .string)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .nativeGroupSurface()
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Connected Profiles")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Refresh", action: store.refreshConnections)
+                        .buttonStyle(.borderless)
+                        .font(.caption)
+                }
+                .padding(.horizontal, 4)
+
+                VStack(spacing: 0) {
+                    if store.connectorConnections.isEmpty {
+                        Text("No profiles connected yet. Safari uses the guided file transfer.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(Array(store.connectorConnections.enumerated()), id: \.element.id) { index, connection in
+                            if index > 0 { Divider().padding(.leading, 14) }
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("\(connection.browser.name) · \(connection.label)").font(.body.weight(.medium))
+                                    Spacer()
+                                    Text(connection.connected ? "Connected" : "Waiting for browser")
+                                        .font(.caption)
+                                        .foregroundStyle(connection.connected ? .green : .secondary)
+                                }
+                                Text(connection.profilePath).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                                if let version = connection.browserVersion { Text("Observed browser version: \(version)").font(.caption).foregroundStyle(.secondary) }
+                                if let executable = connection.browserExecutable { Text(executable).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
+                                HStack {
+                                    Text("Connection is separate from automatic transfer verification.").font(.caption).foregroundStyle(.secondary)
+                                    Spacer()
+                                    Button("Disconnect") { do { try ConnectorStore().disconnect(connection.id); store.refreshConnections() } catch { store.error = error.localizedDescription } }
+                                        .controlSize(.small)
+                                }
+                            }
+                            .padding(14)
+                        }
+                    }
+                }
+                .nativeGroupSurface()
             }
         }.onAppear(perform: store.refreshConnections)
     }
+
     var body: some View {
         NavigationSplitView {
-            VStack(alignment: .leading, spacing: 24) {
-                HStack(spacing: 9) { Image(nsImage: NSImage(contentsOf: Bundle.main.resourceURL!.appendingPathComponent("app-icon.png")) ?? NSImage()).resizable().frame(width: 28, height: 28); Text("Browser Bridge").font(.headline) }.padding(.top, 22)
-                List(Page.allCases, selection: $store.page) { page in Label(page.rawValue, systemImage: page.symbol).tag(page) }.listStyle(.sidebar)
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Stays on this Mac", systemImage: "lock.shield").font(.callout.weight(.medium))
-                    Text("Free and open source · MIT").font(.caption).foregroundStyle(.secondary)
-                    Text("No uploads or paid services.").font(.caption).foregroundStyle(.secondary)
-                    if store.demo { Text("Demo data · export disabled").font(.caption).foregroundStyle(.orange) }
-                }.padding(.bottom, 22)
-            }.padding(.horizontal, 16).navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
+            List(Page.allCases, selection: $store.page) { page in
+                Label(page.rawValue, systemImage: page.symbol)
+                    .tag(page)
+            }
+            .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.green)
+                            .frame(width: 6, height: 6)
+                        Text("100% Local on This Mac")
+                            .font(.caption.weight(.medium))
+                    }
+                    Text("Zero cloud uploads · MIT License")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if store.demo {
+                        Text("Demo data · export disabled")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationSplitViewColumnWidth(min: 200, ideal: 215, max: 250)
         } detail: {
             VStack(spacing: 0) {
-                routeControls.padding(20).disabled(store.transferring)
-                Divider()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 28) {
-                        switch store.page { case .transfer: transfer; case .connections: connections; case .overview: overview; case .plan: plan; case .support: support; case .packages: packages }
-                    }.padding(32).frame(maxWidth: 940, alignment: .leading).frame(maxWidth: .infinity, alignment: .leading)
+                if store.page != .transfer {
+                    routeControls
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 14)
+                        .background(.bar)
+                        .disabled(store.transferring)
+                    Divider()
                 }
-                Divider()
-                HStack(spacing: 12) {
-                    if store.creating { ProgressView().controlSize(.small); Text("Verifying backups… Keep both browsers closed.").font(.callout) }
-                    else { Label(store.portableOnly ? "Portable input; source profile not backed up." : "Originals stay intact. Import adds to the destination.", systemImage: "checkmark.shield").font(.callout).foregroundStyle(.secondary) }
-                    Spacer()
-                    Button("Create migration package…", action: store.createPackage)
-                        .buttonStyle(.borderedProminent).tint(accent).controlSize(.large)
-                        .disabled(!store.canCreate)
-                        .keyboardShortcut("e", modifiers: [.command])
-                }.padding(20)
-            }.navigationTitle(store.page.rawValue)
-                .toolbar { Button { store.showsCredentials = true } label: { Label("Passwords", systemImage: "key.horizontal") }.disabled(store.demo); Button { store.discover() } label: { Label("Rescan profiles", systemImage: "arrow.clockwise") }.disabled(store.loading || store.creating) }
-        }.tint(accent).task { store.discover() }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        switch store.page {
+                        case .transfer: transfer
+                        case .connections: connections
+                        case .overview: overview
+                        case .plan: plan
+                        case .support: support
+                        case .packages: packages
+                        }
+                    }
+                    .padding(24)
+                    .frame(maxWidth: 780, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                if store.page != .transfer {
+                    Divider()
+                    HStack(spacing: 12) {
+                        if store.creating {
+                            ProgressView().controlSize(.small)
+                            Text("Verifying backups… Keep both browsers closed.").font(.callout)
+                        } else {
+                            Label(store.portableOnly ? "Portable input; source profile not backed up." : "Originals stay intact. Import adds to the destination.", systemImage: "checkmark.shield")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Create Migration Package…", action: store.createPackage)
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!store.canCreate)
+                            .keyboardShortcut("e", modifiers: [.command])
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(.bar)
+                }
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
+            .navigationTitle(store.page.rawValue)
+            .toolbar {
+                Button { store.showsCredentials = true } label: { Label("Passwords", systemImage: "key.horizontal") }.disabled(store.demo)
+                Button { store.discover() } label: { Label("Rescan Profiles", systemImage: "arrow.clockwise") }.disabled(store.loading || store.creating)
+            }
+        }
+        .tint(accent)
+        .task { store.discover() }
         .sheet(isPresented: $store.showsCredentials) { CredentialView() }
         .onChange(of: store.selectedID) { _, _ in store.scan() }
         .onChange(of: store.sourceBrowser) { _, _ in store.changeSource() }
@@ -417,128 +1117,297 @@ struct ManagerView: View {
         .onChange(of: store.portableOnly) { _, _ in store.scan() }
         .alert("Couldn’t complete that step", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) { Button("OK") { store.error = nil } } message: { Text(store.error ?? "") }
     }
+
     private var routeControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 16) {
+                HStack(spacing: 8) {
                     Picker("From", selection: $store.sourceBrowser) { ForEach(BrowserID.allCases) { Text($0.name).tag($0) } }
+                        .frame(width: 150)
                     Picker("Profile", selection: $store.selectedID) {
                         if store.profiles.isEmpty { Text("No detected profile").tag("") }
                         ForEach(store.profiles) { Text($0.name).tag($0.id) }
                     }
-                    Button("Choose source folder…") { store.chooseProfile() }
+                    .labelsHidden()
+                    .frame(width: 160)
+                    Button("Choose…") { store.chooseProfile() }
+                        .controlSize(.small)
                 }
-                Image(systemName: "arrow.right").padding(.top, 14).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 8) {
-                    Picker("To", selection: $store.targetBrowser) { ForEach(BrowserID.allCases) { Text($0.name).tag($0) } }
-                    Picker("Profile", selection: $store.targetID) {
-                        Text("New / separately backed up").tag("")
-                        ForEach(store.targetProfiles) { Text($0.name).tag($0.id) }
-                    }
-                    Button("Choose destination folder…") { store.chooseProfile(destination: true) }
-                }
-            }.disabled(store.creating || store.transferring || store.demo)
-            if store.target == nil { Toggle("Destination is a new or separately backed-up profile", isOn: $store.destinationBackedUp).font(.callout).disabled(store.creating || store.transferring || store.demo) }
-        }
-    }
-    private var support: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Eleven browsers.\nClear boundaries.").font(.largeTitle.weight(.semibold))
-            Text("Choose either end of a migration. Support is shown by format and data category; a shared engine does not prove a vendor build was tested.").foregroundStyle(.secondary)
-            ForEach(BrowserID.allCases) { browser in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack { Text(browser.name).font(.headline); Spacer(); Text(browser.family.rawValue.capitalized).font(.callout).foregroundStyle(.secondary) }
-                    Text(browser.family == .safari ? "Source: readable bookmarks/history files or exported HTML. Destination: manual bookmark HTML import. Native tabs/groups and authenticated sessions stay archived." : "Source: profile bookmarks/history plus optional live capture for exposed tabs, pins and groups. Destination: public WebExtension helper; native spaces/Favorites may remain archived.").font(.callout).foregroundStyle(.secondary)
-                    Divider().padding(.top, 6)
-                }
-            }
-            note(title: "Verification, separately stated", text: "Discovery fixtures cover all eleven names. Source-decoder fixtures cover the Chromium, Firefox/Zen and Safari families. Chromium and Firefox extension APIs have isolated-profile integration coverage. Other vendor builds are not all end-to-end verified; family similarity is not acceptance testing. Firefox fresh profiles may need bookmark initialization before import. Arc sidebar and Vivaldi workspaces are archive-only. Safari lists data folders, not named profiles, and may require macOS privacy access; portable HTML avoids reading the source profile.", symbol: "checkmark.seal")
-        }
-    }
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Your browsers.\nOne bridge.").font(.system(size: 36, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
-                Text("Keep your browsing setup portable, with verified backups and a clear map of what transfers.").font(.title3).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 16) {
-                Label(store.sourceBrowser.name, systemImage: "square.stack.3d.up").font(.title2.weight(.medium))
                 Image(systemName: "arrow.right").foregroundStyle(.secondary)
-                Label(store.targetBrowser.name, systemImage: "circle.hexagongrid").font(.title2.weight(.medium))
-                Spacer(); Text("Backup → Preview → Import").font(.callout).foregroundStyle(.secondary)
-            }.padding(.vertical, 16)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    if store.sourceBrowser == .arc || store.sourceBrowser == .safari { Button("Capture native open windows…", action: store.captureNativeWindows).disabled(store.loading) }
-                    if store.sourceBrowser.family != .safari { Button("Save capture helper…", action: store.saveCaptureHelper) }
-                    Button("Attach capture / bookmarks HTML…", action: store.attachPortable)
-                }.disabled(store.creating || store.transferring || store.demo)
-                Text(store.sourceBrowser.family == .safari ? "Safari: optionally capture exposed ordinary windows, or attach a bookmarks HTML export. Native Tab Groups and pin state are not exposed by this capture." : "For live tabs and pins, capture in the source browser, attach its JSON here, then quit browsers before backup.").font(.callout).foregroundStyle(.secondary)
-                if let capture = store.captureURL {
-                    Text("Attached: \(capture.lastPathComponent)").font(.callout).textSelection(.enabled)
-                    Toggle("Portable file only — source profile is not read or backed up", isOn: $store.portableOnly).font(.callout).disabled(store.creating)
+                HStack(spacing: 8) {
+                    Picker("To", selection: $store.targetBrowser) { ForEach(BrowserID.allCases) { Text($0.name).tag($0) } }
+                        .frame(width: 140)
+                    if store.targetBrowser == .dia {
+                        Text("Spaces auto-mapped")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Picker("Profile", selection: $store.targetID) {
+                            Text("New / backed up").tag("")
+                            ForEach(store.targetProfiles) { Text($0.name).tag($0.id) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 160)
+                        Button("Choose…") { store.chooseProfile(destination: true) }
+                            .controlSize(.small)
+                    }
                 }
-                if let notice = store.notice { Text(notice).font(.callout).foregroundStyle(.secondary).textSelection(.enabled) }
+                Spacer()
+            }.disabled(store.creating || store.transferring || store.demo)
+            if store.target == nil && store.targetBrowser != .dia {
+                Toggle("Destination is a new or separately backed-up profile", isOn: $store.destinationBackedUp)
+                    .font(.caption)
+                    .disabled(store.creating || store.transferring || store.demo)
             }
-            Divider()
-            if store.loading { HStack { ProgressView(); Text("Reading source data…") }.padding(.vertical, 24) }
-            else if let s = store.snapshot {
-                Text(store.portableOnly ? "Found in your portable input" : "Found in your source").font(.title2.weight(.semibold))
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 24) {
-                    count("Tabs", s.tabs.count); count("Essentials", s.tabs.filter(\.essential).count); count("Pinned tabs", s.tabs.filter { $0.pinned && !$0.essential }.count)
-                    count("Spaces / windows", s.spaces.count); count("Folders / groups", s.folders.count); count("History entries", s.history.count)
-                }
-                Text("Snapshot: \(s.sourceFile.isEmpty ? "Demo session" : s.sourceFile). Bookmarks and additional profile data are included in the package.").font(.callout).foregroundStyle(.secondary)
-                note(title: "A complete archive. An honest transfer.", text: "Profile packages preserve originals; portable-only packages preserve just the input file. Spaces and native browser features may need approximations. Credentials and cookies have explicit limits in the transfer plan.", symbol: "info.circle")
-                if !s.warnings.isEmpty { note(title: "Profile notes", text: s.warnings.joined(separator: "\n"), symbol: "exclamationmark.triangle") }
-                Button("Review transfer plan", action: { store.page = .plan }).buttonStyle(.bordered).controlSize(.large)
-            } else { ContentUnavailableView("Choose a source", systemImage: "folder", description: Text("Select a detected profile, choose its folder, or attach a portable JSON/bookmarks HTML file.")) }
         }
     }
-    private func count(_ name: String, _ value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) { Text(value.formatted()).font(.system(size: 28, weight: .medium)).monospacedDigit(); Text(name).foregroundStyle(.secondary) }.accessibilityElement(children: .combine)
-    }
-    private var plan: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Know what arrives,\nand in what shape.").font(.largeTitle.weight(.semibold))
-            Text("Review this route before packaging. Chromium/Firefox destinations use a local helper; Safari uses a manual bookmark-file import.").foregroundStyle(.secondary)
-            ForEach(BrowserSupport.rows(source: store.sourceBrowser, target: store.targetBrowser)) { row in
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline) { Text(row.category).font(.headline); Spacer(); Text(row.status).font(.callout.weight(.medium)).foregroundStyle(.secondary) }
-                    Text(row.detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                    Divider().padding(.top, 8)
-                }
-            }
-            note(title: "Before creating a package", text: "Quit the selected browsers with ⌘Q. The app verifies copies of the selected profiles. Packages contain sensitive data; owner-only permissions are not encryption. Keep them on an encrypted disk. Caches and live locks are omitted. In portable-only mode, the original source profile is not read or backed up.", symbol: "externaldrive.badge.checkmark")
-            if store.target == nil { note(title: "No destination backup selected", text: "Choose an existing destination profile above, or confirm that you will import into a new or separately backed-up profile.", symbol: "exclamationmark.triangle") }
 
-        }
-    }
-    private var packages: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            Text("Saved packages").font(.largeTitle.weight(.semibold))
-            Text("Keep a history of your exports. A saved package means the export is ready; import status and rollback live in its destination helper.").foregroundStyle(.secondary)
-            if store.packageURLs.isEmpty { ContentUnavailableView("No packages yet", systemImage: "archivebox", description: Text("Create a package after reviewing the plan. Selected profile browsers must be closed.")) }
-            ForEach(store.packageURLs, id: \.path) { url in
-                VStack(alignment: .leading, spacing: 12) {
-                    Label(url.lastPathComponent, systemImage: "shippingbox").font(.headline)
-                    Text(url.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
-                    HStack {
-                        Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-                        Button("Read import steps") { NSWorkspace.shared.open(url.appendingPathComponent("READ ME.md")) }
-                        Button("Copy package path") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(url.path, forType: .string) }
-                    }; Divider().padding(.top, 8)
+    private var support: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Supported Browsers")
+                    .font(.title2.weight(.semibold))
+                Text("Support is shown by format and data category; a shared engine does not prove a vendor build was tested.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(BrowserID.allCases.enumerated()), id: \.element.id) { index, browser in
+                    if index > 0 { Divider().padding(.leading, 50) }
+                    HStack(alignment: .top, spacing: 12) {
+                        let badge = browserBadgeIcon(for: browser)
+                        settingsIconBadge(symbol: badge.symbol, color: badge.color)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                Text(browser.name).font(.body.weight(.medium))
+                                Spacer()
+                                Text(browser.family.rawValue.capitalized)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(browser.family == .safari ? "Source: readable bookmarks/history files or exported HTML. Destination: manual bookmark HTML import. Native tabs/groups and authenticated sessions stay archived." : "Source: profile bookmarks/history plus optional live capture for exposed tabs, pins and groups. Destination: direct local profile injection or WebExtension helper.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
                 }
             }
-            Button("Locate existing package…", action: store.addPackage).disabled(store.creating)
-            note(title: "Continue in the destination", text: "Read each package’s instructions for its target. Chromium loads the Importer folder; Firefox/Zen load its manifest as a temporary add-on; Safari imports Bookmarks.html manually. Package creation is an export, not a completed import.", symbol: "puzzlepiece.extension")
-            note(title: "Undo an import", text: "Open the same helper in the same destination profile and choose Roll back this package. It uses its saved journal to remove its own bookmark trees and unchanged tabs from this browser session. History URLs are retained for review. Review retained items in the journal. Export the journal before restarting a Firefox temporary add-on. Safari manual imports have no helper rollback.", symbol: "arrow.uturn.backward")
+            .nativeGroupSurface()
+
+            note(title: "Verification Boundaries", text: "Discovery fixtures cover all eleven names. Source-decoder fixtures cover the Chromium, Firefox/Zen and Safari families. Safari lists data folders, not named profiles, and may require macOS privacy access; portable HTML avoids reading the source profile.", symbol: "checkmark.seal")
         }
     }
+
+    private var overview: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Profile Overview")
+                    .font(.title2.weight(.semibold))
+                Text("Inspect discovered items in your selected source profile before migrating or creating an archive.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    if store.sourceBrowser == .arc || store.sourceBrowser == .safari {
+                        Button("Capture Open Windows…", action: store.captureNativeWindows)
+                            .controlSize(.small)
+                            .disabled(store.loading)
+                    }
+                    if store.sourceBrowser.family != .safari {
+                        Button("Save Capture Helper…", action: store.saveCaptureHelper)
+                            .controlSize(.small)
+                    }
+                    Button("Attach Capture / Bookmarks HTML…", action: store.attachPortable)
+                        .controlSize(.small)
+                    Spacer()
+                }.disabled(store.creating || store.transferring || store.demo)
+
+                Text(store.sourceBrowser.family == .safari ? "Safari: optionally capture exposed ordinary windows, or attach a bookmarks HTML export." : "Optional: attach a live session capture JSON or portable bookmarks HTML file.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let capture = store.captureURL {
+                    Text("Attached: \(capture.lastPathComponent)").font(.caption).textSelection(.enabled)
+                    Toggle("Portable file only — source profile is not read or backed up", isOn: $store.portableOnly).font(.caption).disabled(store.creating)
+                }
+                if let notice = store.notice { Text(notice).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+            }
+            .padding(14)
+            .nativeGroupSurface()
+
+            if store.loading {
+                HStack { ProgressView().controlSize(.small); Text("Reading source data…").font(.subheadline).foregroundStyle(.secondary) }.padding(.vertical, 16)
+            } else if let s = store.snapshot {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(store.portableOnly ? "Portable Input Summary" : "Source Profile Summary")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 10) {
+                        count("Open Tabs", s.tabs.count)
+                        count("Essentials", s.tabs.filter(\.essential).count)
+                        count("Pinned Tabs", s.tabs.filter { $0.pinned && !$0.essential }.count)
+                        count("Spaces", s.spaces.count)
+                        count("Folders & Groups", s.folders.count)
+                        count("History Entries", s.history.count)
+                    }
+                }
+
+                Text("Source: \(s.sourceFile.isEmpty ? "Demo session" : s.sourceFile)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if !s.warnings.isEmpty {
+                    note(title: "Profile Notes", text: s.warnings.joined(separator: "\n"), symbol: "exclamationmark.triangle")
+                }
+
+                HStack {
+                    Button("Review Transfer Plan") { store.page = .plan }
+                    Button("Go to 1-Click Migration") { store.page = .transfer }
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                ContentUnavailableView("Choose a Source Profile", systemImage: "folder", description: Text("Select a detected profile, choose its folder, or attach a portable JSON/bookmarks HTML file."))
+            }
+        }
+    }
+
+    private func count(_ name: String, _ value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value.formatted())
+                .font(.title2.weight(.semibold))
+                .monospacedDigit()
+            Text(name)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nativeGroupSurface(cornerRadius: 8)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var plan: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Transfer Plan")
+                    .font(.title2.weight(.semibold))
+                Text("Capability map for migrating from \(store.sourceBrowser.name) to \(store.targetBrowser.name).")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            VStack(spacing: 0) {
+                let rows = BrowserSupport.rows(source: store.sourceBrowser, target: store.targetBrowser)
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 { Divider().padding(.leading, 14) }
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(row.category).font(.body.weight(.medium))
+                            Spacer()
+                            Text(row.status)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                }
+            }
+            .nativeGroupSurface()
+            note(title: "Before Creating a Package", text: "Quit the selected browsers with ⌘Q. The app verifies copies of the selected profiles. Packages contain sensitive data; keep them on an encrypted disk.", symbol: "externaldrive.badge.checkmark")
+        }
+    }
+
+    private var packages: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Saved Packages")
+                        .font(.title2.weight(.semibold))
+                    Text("Portable migration archives exported on this Mac.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Add Existing Package…", action: store.addPackage)
+                    .disabled(store.creating)
+            }
+
+            if store.packageURLs.isEmpty {
+                ContentUnavailableView("No Saved Packages", systemImage: "archivebox", description: Text("Create a portable package from the Transfer Plan tab, or use Transfer for direct 1-click profile migration."))
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(store.packageURLs.enumerated()), id: \.element.path) { index, url in
+                        if index > 0 { Divider().padding(.leading, 14) }
+                        HStack(spacing: 12) {
+                            Image(systemName: "shippingbox.fill")
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(url.lastPathComponent).font(.body.weight(.medium))
+                                Text(url.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                            }
+                            Spacer()
+                            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                                .controlSize(.small)
+                            Button("Read Steps") { NSWorkspace.shared.open(url.appendingPathComponent("READ ME.md")) }
+                                .controlSize(.small)
+                            Button("Copy Path") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(url.path, forType: .string) }
+                                .controlSize(.small)
+                        }
+                        .padding(14)
+                    }
+                }
+                .nativeGroupSurface()
+            }
+        }
+    }
+
     private func note(title: String, text: String, symbol: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol).font(.title3).padding(.top, 2)
-            VStack(alignment: .leading, spacing: 6) { Text(title).font(.headline); Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
-        }.padding(20).frame(maxWidth: .infinity, alignment: .leading).background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .foregroundStyle(.secondary)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.medium))
+                Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nativeGroupSurface()
+    }
+}
+
+struct StepIndicator: View {
+    let step: Int
+    let current: Int
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if current > step {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.caption)
+            } else if current == step {
+                ProgressView()
+                    .controlSize(.mini)
+            } else {
+                Circle()
+                    .strokeBorder(Color.secondary.opacity(0.35), lineWidth: 1)
+                    .frame(width: 9, height: 9)
+            }
+            Text(title)
+                .font(.caption)
+                .fontWeight(current == step ? .medium : .regular)
+                .foregroundStyle(current >= step ? .primary : .secondary)
+        }
     }
 }

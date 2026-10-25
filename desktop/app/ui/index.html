@@ -10,7 +10,160 @@
 <div class="workspace"><header class="topbar"><span id="platform">Reading local readiness…</span><span id="preview-label" hidden>Preview · synthetic data</span><button id="refresh" class="quiet">Refresh connections</button></header>
 <main id="main" tabindex="-1">
 <div id="message" tabindex="-1" role="status" aria-live="polite" hidden></div>
-<section id="view-transfer" class="view"><div class="page-heading"><h1>Transfer your browser setup</h1><p>Bring a browsing setup across. Keep the original within reach.</p></div>
+<section id="view-transfer" class="view">
+<div class="page-heading">
+<div class="hero-badge"><span class="badge-dot"></span> One-Click Native Migration</div>
+<h1>Transfer your browser setup</h1>
+<p class="heading-sub">Seamless 1-Click Migration</p>
+<p>Transfer your entire browsing world — tabs, bookmarks, and groups — between browsers in a single click. 100% local, safe pre-migration backup &amp; instant rollback.</p>
+</div>
+<div class="one-click-hero-card">
+<div class="one-click-header">
+<div class="hero-badge-pill">⚡ Direct Profile Transfer</div>
+<span class="one-click-note">No unpacked extensions · No pairing codes · Automatic safety backup</span>
+</div>
+<div class="one-click-stats">
+<div class="stat-item"><span class="stat-number">1-Click</span><span class="stat-label">Execution</span></div>
+<div class="stat-item"><span class="stat-number">0</span><span class="stat-label">Extensions Needed</span></div>
+<div class="stat-item"><span class="stat-number">&lt; 1s</span><span class="stat-label">Average Time</span></div>
+<div class="stat-item"><span class="stat-number">100%</span><span class="stat-label">Local &amp; Private</span></div>
+</div>
+</div>
+
+<div id="one-click-workspace" class="one-click-card">
+<div class="route-deck">
+  <div class="route-panel source-panel">
+    <div class="panel-header">
+      <span class="panel-badge source-badge">FROM BROWSER</span>
+      <button type="button" class="panel-action-btn" id="oc-choose-source-folder">Choose folder…</button>
+    </div>
+    <div class="browser-selector-row">
+      <label for="oc-source-browser" class="sr-only">Source Browser</label>
+      <select id="oc-source-browser" class="oc-select browser-select"></select>
+    </div>
+    <div class="profile-selector-row">
+      <label for="oc-source-profile" class="sr-only">Source Profile</label>
+      <select id="oc-source-profile" class="oc-select profile-select"></select>
+    </div>
+    <div class="panel-status-pill" id="oc-source-status">
+      <span class="status-indicator live"></span>
+      <span id="oc-source-status-text">Scanning profile…</span>
+    </div>
+  </div>
+
+  <div class="route-beam" aria-hidden="true">
+    <div class="beam-icon">➔</div>
+    <span class="beam-label">1-CLICK DIRECT</span>
+  </div>
+
+  <div class="route-panel dest-panel">
+    <div class="panel-header">
+      <span class="panel-badge dest-badge">TO BROWSER</span>
+      <button type="button" class="panel-action-btn" id="oc-choose-dest-folder">Choose folder…</button>
+    </div>
+    <div class="browser-selector-row">
+      <label for="oc-dest-browser" class="sr-only">Destination Browser</label>
+      <select id="oc-dest-browser" class="oc-select browser-select"></select>
+    </div>
+    <div class="profile-selector-row">
+      <label for="oc-dest-profile" class="sr-only">Destination Profile</label>
+      <select id="oc-dest-profile" class="oc-select profile-select"></select>
+    </div>
+    <div class="panel-status-pill ready" id="oc-dest-status">
+      <span class="status-indicator ready"></span>
+      <span id="oc-dest-status-text">Ready for direct injection</span>
+    </div>
+  </div>
+</div>
+
+<div class="oc-options-panel">
+  <div class="oc-options-title">What to migrate</div>
+  <div class="oc-options-grid">
+    <label class="oc-checkbox-label">
+      <input type="checkbox" id="oc-opt-bookmarks" checked>
+      <span>Bookmarks &amp; folders</span>
+    </label>
+    <label class="oc-checkbox-label">
+      <input type="checkbox" id="oc-opt-tabs" checked>
+      <span>Open tabs &amp; pins</span>
+    </label>
+    <label class="oc-checkbox-label">
+      <input type="checkbox" id="oc-opt-groups" checked>
+      <span>Tab groups &amp; spaces</span>
+    </label>
+    <label class="oc-checkbox-label">
+      <input type="checkbox" id="oc-opt-history" checked>
+      <span>Browsing history</span>
+    </label>
+  </div>
+  <div class="oc-safeguard-grid">
+    <label class="oc-checkbox-label subtle">
+      <input type="checkbox" id="oc-opt-close" checked>
+      <span>Close destination before migrating if running (prevents memory overwrite)</span>
+    </label>
+    <label class="oc-checkbox-label subtle">
+      <input type="checkbox" id="oc-opt-open" checked>
+      <span>Automatically launch destination browser with migrated tabs</span>
+    </label>
+  </div>
+</div>
+
+<div class="oc-action-area">
+  <button type="button" id="oc-migrate-btn" class="oc-primary-btn">
+    <span class="btn-icon">⚡</span>
+    <span id="oc-migrate-btn-label">Migrate in 1-Click</span>
+  </button>
+
+  <div id="oc-progress-box" class="oc-progress-container" hidden>
+    <div class="progress-bar-track">
+      <div id="oc-progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+    </div>
+    <div class="progress-steps">
+      <div class="step-node" id="oc-step-1"><span class="step-num">1</span> Inspect</div>
+      <div class="step-node" id="oc-step-2"><span class="step-num">2</span> Safe Backup</div>
+      <div class="step-node" id="oc-step-3"><span class="step-num">3</span> Direct Inject</div>
+      <div class="step-node" id="oc-step-4"><span class="step-num">4</span> Complete</div>
+    </div>
+    <p id="oc-progress-status" class="progress-status-msg">Starting migration…</p>
+    <p class="progress-security-note">Zero extensions · Originals backed up safely · Reversible anytime</p>
+  </div>
+</div>
+</div>
+
+<div id="oc-success-card" class="oc-success-card" hidden>
+  <div class="success-header">
+    <div class="success-badge-icon">✓</div>
+    <div>
+      <h3 id="oc-success-title">Migration Complete! 🎉</h3>
+      <p id="oc-success-subtitle">Successfully transferred items directly into profile.</p>
+    </div>
+    <span class="verified-pill">1-CLICK VERIFIED</span>
+  </div>
+  <div class="success-counts" id="oc-success-counts">
+    <span class="count-pill" id="oc-count-bookmarks">🔖 0 Bookmarks</span>
+    <span class="count-pill" id="oc-count-tabs">🪟 0 Tabs &amp; Pins</span>
+    <span class="count-pill" id="oc-count-groups">🗂 0 Groups</span>
+    <span class="count-pill" id="oc-count-history">🕒 0 History</span>
+  </div>
+  <div class="success-actions">
+    <button type="button" id="oc-rollback-btn" class="quiet-btn danger-hover">Undo Migration (Rollback)</button>
+    <button type="button" id="oc-reveal-backup-btn" class="quiet-btn">Reveal Backup in Finder</button>
+    <button type="button" id="oc-launch-dest-btn" class="primary-btn">Open Destination Browser</button>
+  </div>
+</div>
+
+<section id="oc-history-section" class="oc-history-card">
+  <div class="history-header">
+    <h3>Migration History</h3>
+    <button type="button" id="oc-refresh-history" class="quiet-small">Refresh</button>
+  </div>
+  <div id="oc-history-list" class="history-list">
+    <p class="empty-state">No one-click migrations yet. Select your browsers above and click Migrate.</p>
+  </div>
+</section>
+
+<details class="advanced-details" open>
+<summary class="advanced-summary">Advanced manual connector &amp; guided package options…</summary>
 <form id="transfer-form">
 <div class="route"><fieldset><legend>From</legend><label for="source-browser">Browser</label><select id="source-browser"></select><label for="source-profile">Connected profile</label><select id="source-profile"></select><p class="field-note" id="source-readiness">Connect the profile you want to move.</p></fieldset><div class="route-direction" aria-hidden="true"><svg viewBox="0 0 32 32" width="32" height="32"><path d="M5 16h22m-7-7 7 7-7 7"/></svg></div><fieldset><legend>To</legend><label for="destination-browser">Browser</label><select id="destination-browser"></select><label for="destination-profile">Connected profile</label><select id="destination-profile"></select><p class="field-note" id="destination-readiness">Existing destination data is preserved.</p></fieldset></div>
 <div class="transfer-detail"><div><h2>What comes along</h2><p class="secondary">Native spaces and protected sign-ins have their own transfer boundaries.</p></div><div class="categories"><label><input type="checkbox" name="bookmarks" checked> Bookmarks &amp; folders</label><label><input type="checkbox" name="tabs" checked> Tabs &amp; pins</label><label><input type="checkbox" name="groups"> Portable groups</label><label><input type="checkbox" name="history"> Browsing history</label></div></div>
@@ -20,6 +173,7 @@
 <div class="actions"><button id="start-transfer" class="primary" type="submit" disabled>Transfer</button><button id="guided-package" type="button" class="quiet" disabled>Create guided package</button><button type="button" class="text-button" data-view="connections">Set up connections</button></div>
 </form>
 <section id="current-transfer" hidden aria-labelledby="current-title"><div class="section-heading"><h2 id="current-title">Current transfer</h2><span id="current-phase"></span></div><p id="current-detail"></p><ol id="phase-list" class="phases"><li>Capture</li><li>Back up</li><li>Import</li><li>Verify</li></ol><p id="current-backup" class="path"></p></section>
+</details>
 </section>
 <section id="view-connections" class="view" hidden><div class="page-heading"><h1>A connection you can trust.</h1><p>Choose the exact profile folder, then pair the local connector inside that browser.</p></div><form id="connection-form" class="connection-form"><label for="connect-browser">Browser</label><select id="connect-browser"></select><div class="backup-row"><div><h2>Profile folder</h2><p id="connect-profile-path" class="path">Check the browser’s version or support page for its profile path.</p></div><button type="button" id="choose-profile" class="quiet">Choose profile folder</button></div><label class="acknowledgment"><input id="profile-confirmed" type="checkbox"><span>I checked this folder against the browser’s own profile path. An extension cannot discover its filesystem profile.</span></label><button id="pair-profile" class="primary" disabled>Install connector &amp; create pairing code</button></form><div id="pairing-result" class="notice" hidden><h2>Connect this exact profile</h2><p id="pairing-location" class="path"></p><p>Load the connector in the selected browser, then enter this short-lived code.</p><code id="pairing-code"></code><button class="text-button" data-reference="setup">Open installation steps</button></div><div class="section-heading"><h2>Your connections</h2></div><div id="connections-list"></div></section>
 <section id="view-sensitive" class="view" hidden><div class="page-heading"><h1>Bring sign-ins thoughtfully.</h1><p>Credentials, cookies and a working login are different outcomes. This step asks for consent separately.</p></div><section class="sensitive-section"><h2>Passwords &amp; passkeys</h2><p>Use the source browser or credential provider’s supported export. Browser or operating-system authentication may be required. Passkey exchange depends on the provider.</p><div class="actions"><button id="choose-credential" class="quiet">Choose password CSV</button><button class="text-button" data-reference="credentials">Supported credential flows</button></div><p id="credential-path" class="path">No credential file selected.</p><form id="credential-step" hidden><label for="credential-passphrase">Passphrase to protect the staged export</label><input id="credential-passphrase" name="vault-passphrase" type="password" autocomplete="new-password" minlength="12"><label class="acknowledgment"><input id="credential-consent" type="checkbox"><span>I authorize this credential step. Keep values out of receipts and preserve my original export.</span></label><button id="protect-credential" class="primary">Protect credential export</button></form><p id="credential-result" role="status"></p>
